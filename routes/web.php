@@ -16,7 +16,3 @@ Route::prefix('loja')->group(function () {
     Route::get('produtos/{idOrReference}', [\App\Http\Controllers\Store\StoreProductController::class, 'show']);
     Route::get('pesquisa', [\App\Http\Controllers\Store\StoreSearchController::class, 'index']);
 });
-
-Route::get('link', function() {
-    Artisan::call('storage:link');
-});
