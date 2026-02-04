@@ -16,6 +16,7 @@ class StoreSearchController extends Controller
 
         try {
             $results = $catalog->search($q, $page, $perPage);
+            $headerCategories = $catalog->categories();
         } catch (\RuntimeException $e) {
             return response()
                 ->view('store.error', ['message' => $e->getMessage()], 503);
@@ -24,6 +25,7 @@ class StoreSearchController extends Controller
         return view('store.search', [
             'q' => $q,
             'results' => $results,
+            'headerCategories' => $headerCategories ?? [],
         ]);
     }
 }

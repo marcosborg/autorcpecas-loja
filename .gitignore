@@ -1,1 +1,2 @@
 .env
+vendor/pestphp/pest/.temp/

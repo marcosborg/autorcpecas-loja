@@ -66,6 +66,19 @@ class TpSoftwareIndexStore
         return is_array($data) ? $data : null;
     }
 
+    public function isFreshForCurrentConfig(): bool
+    {
+        $meta = $this->meta() ?? [];
+
+        $schemaOk = ((int) ($meta['schema_version'] ?? 0)) === self::SCHEMA_VERSION;
+
+        $currentLanguage = (string) config('tpsoftware.catalog.language', 'en');
+        $metaLanguage = (string) ($meta['language'] ?? '');
+        $languageOk = $metaLanguage === '' || $metaLanguage === $currentLanguage;
+
+        return $schemaOk && $languageOk;
+    }
+
     /**
      * @param  list<array<string, mixed>>  $products
      */
@@ -85,6 +98,7 @@ class TpSoftwareIndexStore
             'total' => $total,
             'indexed' => count($products),
             'schema_version' => self::SCHEMA_VERSION,
+            'language' => (string) config('tpsoftware.catalog.language', 'en'),
         ];
 
         $this->files->put($this->metaPath(), json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));

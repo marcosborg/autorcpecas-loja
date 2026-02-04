@@ -15,6 +15,23 @@ class TelepecasCatalogService implements CatalogProvider
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function randomProducts(int $count = 24): array
+    {
+        $count = max(1, min(200, $count));
+
+        /** @var list<array<string, mixed>> $products */
+        $products = $this->indexProducts();
+
+        return collect($products)
+            ->shuffle()
+            ->take($count)
+            ->values()
+            ->all();
+    }
+
+    /**
      * @return list<array{slug: string, name: string, count: int|null}>
      */
     public function categories(): array
@@ -280,15 +297,13 @@ class TelepecasCatalogService implements CatalogProvider
             ->all();
     }
 
-    /**
-     * @return array{categoryName: string, paginator: LengthAwarePaginator}
-     */
     public function productsByCategory(string $categorySlug, int $page = 1, int $perPage = 24): array
     {
         $page = max(1, $page);
         $perPage = max(1, min(100, $perPage));
 
         $modelFilter = (string) request()->query('model', '');
+        $pieceFilter = (string) request()->query('piece', '');
 
         /** @var list<array<string, mixed>> $products */
         $products = $this->indexProducts();
@@ -296,7 +311,7 @@ class TelepecasCatalogService implements CatalogProvider
         $source = (string) config('telepecas.catalog.categories_source', 'stock');
         [$categoryId, $categorySlugNormalized] = $this->parseCategorySlug($categorySlug);
 
-        $matching = collect($products)
+        $matchingBase = collect($products)
             ->filter(function (array $product) use ($categorySlug): bool {
                 $category = $product['category'] ?? null;
 
@@ -305,7 +320,7 @@ class TelepecasCatalogService implements CatalogProvider
             ->values();
 
         if ($source === 'makes') {
-            $matching = collect($products)
+            $matchingBase = collect($products)
                 ->filter(function (array $product) use ($categoryId, $categorySlugNormalized): bool {
                     if ($categoryId !== null) {
                         $makeId = $product['make_id'] ?? null;
@@ -322,7 +337,7 @@ class TelepecasCatalogService implements CatalogProvider
             if ($modelFilter !== '') {
                 [$modelId, $modelSlugNormalized] = $this->parseCategorySlug($modelFilter);
 
-                $matching = $matching
+                $matchingBase = $matchingBase
                     ->filter(function (array $product) use ($modelId, $modelSlugNormalized): bool {
                         if ($modelId !== null) {
                             $productModelId = $product['model_id'] ?? null;
@@ -338,10 +353,42 @@ class TelepecasCatalogService implements CatalogProvider
             }
         }
 
+        $buildUrl = function (array $overrides = []) use ($categorySlug): string {
+            $basePath = url('/loja/categorias/'.$categorySlug);
+            $query = array_merge(request()->query(), $overrides);
+
+            unset($query['page']);
+
+            foreach (['model', 'piece', 'perPage'] as $key) {
+                if (! array_key_exists($key, $query)) {
+                    continue;
+                }
+
+                if ($query[$key] === null || $query[$key] === '') {
+                    unset($query[$key]);
+                }
+            }
+
+            return $basePath.(count($query) > 0 ? ('?'.http_build_query($query)) : '');
+        };
+
+        $facets = $this->pieceCategoryFacetsFromProducts($matchingBase, $buildUrl);
+
+        $matching = $matchingBase;
+        if ($pieceFilter !== '') {
+            $wanted = $this->facetNameFromSlug($facets['piece_categories'] ?? [], $pieceFilter);
+
+            if ($wanted !== '') {
+                $matching = $matching
+                    ->filter(fn (array $p): bool => strcasecmp($this->pieceCategoryName((string) ($p['title'] ?? '')), $wanted) === 0)
+                    ->values();
+            }
+        }
+
         $categoryName = (string) (
             ($source === 'makes')
-                ? ($matching->first()['make_name'] ?? $categorySlug)
-                : ($matching->first()['category'] ?? $categorySlug)
+                ? ($matchingBase->first()['make_name'] ?? $categorySlug)
+                : ($matchingBase->first()['category'] ?? $categorySlug)
         );
 
         $total = $matching->count();
@@ -359,6 +406,9 @@ class TelepecasCatalogService implements CatalogProvider
                     'query' => request()->query(),
                 ],
             ),
+            'meta' => [
+                'facets' => $facets,
+            ],
         ];
     }
 
@@ -618,9 +668,9 @@ class TelepecasCatalogService implements CatalogProvider
             ?? data_get($raw, 'externalReference')
             ?? data_get($raw, 'reference');
 
-        $reference = data_get($raw, 'externalReference')
+        $reference = data_get($raw, 'partInfo.reference')
             ?? data_get($raw, 'reference')
-            ?? data_get($raw, 'partInfo.reference');
+            ?? data_get($raw, 'externalReference');
 
         $title = data_get($raw, 'partInfo.partDescriptionPT')
             ?? data_get($raw, 'partInfo.partDescriptionEN')
@@ -764,6 +814,100 @@ class TelepecasCatalogService implements CatalogProvider
         }
 
         return null;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, array<string, mixed>>  $products
+     * @param  callable(array<string, mixed>): string  $buildUrl
+     * @return array<string, mixed>
+     */
+    private function pieceCategoryFacetsFromProducts(Collection $products, callable $buildUrl): array
+    {
+        $counts = [];
+
+        foreach ($products as $p) {
+            $name = $this->pieceCategoryName((string) ($p['title'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $counts[$name] = ($counts[$name] ?? 0) + 1;
+        }
+
+        $opts = [];
+
+        foreach ($counts as $name => $count) {
+            $slug = Str::slug($name);
+            if ($slug === '') {
+                continue;
+            }
+
+            $opts[] = [
+                'slug' => $slug,
+                'name' => $name,
+                'count' => $count,
+                'url' => $buildUrl(['piece' => $slug, 'page' => 1]),
+            ];
+        }
+
+        usort($opts, fn ($a, $b) => strnatcasecmp($a['name'], $b['name']));
+
+        return [
+            'piece_categories' => $opts,
+            'piece_categories_all_url' => $buildUrl(['piece' => null, 'page' => 1]),
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $facetOptions
+     */
+    private function facetNameFromSlug(array $facetOptions, string $slug): string
+    {
+        foreach ($facetOptions as $opt) {
+            if (($opt['slug'] ?? null) === $slug) {
+                return (string) ($opt['name'] ?? '');
+            }
+        }
+
+        return '';
+    }
+
+    private function pieceCategoryName(string $title): string
+    {
+        $title = trim($title);
+
+        if ($title === '') {
+            return '';
+        }
+
+        $title = preg_replace('/\\s+/', ' ', $title) ?? $title;
+        $title = preg_replace('/\\s*\\(.*?\\)\\s*/', ' ', $title) ?? $title;
+        $title = preg_replace('/\\s*,\\s*.*$/', '', $title) ?? $title;
+
+        $firstChunk = preg_split('/\\s*[-–—|\\/]+\\s*/u', $title)[0] ?? $title;
+        $firstChunk = trim($firstChunk);
+
+        if ($firstChunk === '') {
+            return '';
+        }
+
+        $words = preg_split('/\\s+/u', $firstChunk) ?: [];
+        $words = array_values(array_filter($words, fn ($w) => is_string($w) && trim($w) !== ''));
+
+        if (count($words) === 0) {
+            return '';
+        }
+
+        $w1 = mb_strtolower($words[0], 'UTF-8');
+        $multi = in_array($w1, ['kit', 'jogo', 'conjunto'], true);
+
+        $take = $multi ? 2 : 1;
+        if (! $multi && mb_strlen($words[0], 'UTF-8') <= 3) {
+            $take = 2;
+        }
+
+        $picked = array_slice($words, 0, min($take, count($words)));
+
+        return trim(implode(' ', $picked));
     }
 
     /**

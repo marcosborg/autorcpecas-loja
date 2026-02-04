@@ -24,7 +24,7 @@ return [
     'cache_ttl_seconds' => (int) env('TPSOFTWARE_CACHE_TTL_SECONDS', 600),
 
     'catalog' => [
-        'language' => env('TPSOFTWARE_LANGUAGE', 'en'),
+        'language' => env('TPSOFTWARE_LANGUAGE', 'pt'),
         'order_field' => env('TPSOFTWARE_ORDER_FIELD', 'created_at'),
         'order_type' => env('TPSOFTWARE_ORDER_TYPE', 'asc'),
 

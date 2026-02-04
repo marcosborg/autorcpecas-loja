@@ -58,6 +58,21 @@
         .store-navbar .nav-link { padding-left: .75rem; padding-right: .75rem; }
         .store-navbar .nav-link.active { font-weight: 600; color: var(--bs-primary) !important; }
 
+        .store-topnav { background: #fff; }
+        .store-topnav .nav-link { font-weight: 600; letter-spacing: .04em; text-transform: uppercase; font-size: .8rem; color: #8b8b8b; }
+        .store-topnav .nav-link:hover { color: var(--bs-primary); }
+        .store-topnav .nav-link.active { color: var(--bs-primary) !important; }
+        .store-topnav .btn-contact { background: #700000; border-color: #700000; color: #fff; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: .8rem; padding: .45rem .9rem; }
+        .store-topnav .btn-contact:hover { background: #5a0000; border-color: #5a0000; color: #fff; }
+
+        .store-searchbar { background: linear-gradient(90deg, #5a0000, #700000); }
+        .store-searchbar .form-control, .store-searchbar .form-select { border: 0; border-radius: .5rem; height: 44px; }
+        .store-searchbar .search-wrap { max-width: 760px; width: 100%; }
+        .store-searchbar .search-btn { width: 48px; border-radius: .5rem; border: 0; background: #4a0000; color: #fff; }
+        .store-searchbar .search-btn:hover { background: #3d0000; }
+        .store-searchbar .account { color: #fff; font-size: .9rem; }
+        .store-searchbar .account small { display: block; opacity: .85; }
+
         .product-main-img { height: 360px; object-fit: cover; background: #f2f2f2; }
         .product-thumb-btn { border: 1px solid #dee2e6; border-radius: .5rem; overflow: hidden; padding: 0; background: #fff; }
         .product-thumb-btn img { width: 72px; height: 72px; object-fit: cover; display: block; background: #f2f2f2; }
@@ -65,42 +80,74 @@
     </style>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg store-navbar border-bottom shadow-sm mb-3 py-2">
-    <div class="container-xl">
-        <a class="navbar-brand fw-semibold d-flex align-items-center gap-2" href="{{ url('/loja') }}">
-            <img src="{{ asset('assets/img/logo.png') }}" alt="{{ config('app.name', 'Loja') }}">
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#storeNav" aria-controls="storeNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="storeNav">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li class="nav-item">
-                    <a class="nav-link @if(request()->is('loja/categorias*')) active @endif" href="{{ url('/loja/categorias') }}">
-                        {{ config('storefront.catalog_provider') === 'tpsoftware' ? 'Marcas' : 'Categorias' }}
-                    </a>
-                </li>
-            </ul>
-            <form class="d-flex" action="{{ url('/loja/pesquisa') }}" method="get" role="search">
-                <div class="input-group" style="max-width: 420px;">
-                    <input class="form-control" type="search" name="q" value="{{ request('q') }}" placeholder="Pesquisar..." aria-label="Pesquisar">
-                    <button class="btn btn-primary" type="submit">Pesquisar</button>
+<header class="border-bottom">
+    <nav class="navbar navbar-expand-lg store-topnav py-3">
+        <div class="container-xl align-items-center">
+            <a class="navbar-brand fw-semibold d-flex align-items-center gap-2" href="{{ url('/') }}">
+                <img src="{{ asset('assets/img/logo.png') }}" alt="{{ config('app.name', 'Loja') }}" style="height: 70px; width:auto;">
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNav" aria-controls="topNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="topNav">
+                <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
+                    <li class="nav-item">
+                        <a class="nav-link @if(request()->is('/')) active @endif" href="{{ url('/') }}">Início</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link @if(request()->is('sobre-nos')) active @endif" href="{{ url('/sobre-nos') }}">Sobre nós</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link @if(request()->is('marcas')) active @endif" href="{{ url('/marcas') }}">Todas as marcas</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="btn btn-contact" href="{{ url('/contactos') }}">Contactos</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="store-searchbar py-3">
+        <div class="container-xl d-flex align-items-center gap-3">
+            <div class="search-wrap">
+                <div class="d-flex gap-2">
+                    @php($headerCategories = $headerCategories ?? ($categories ?? []))
+                    <select class="form-select store-filter-select" style="max-width: 260px;">
+                        <option value="{{ url('/loja/categorias') }}">{{ config('storefront.catalog_provider') === 'tpsoftware' ? 'Procurar por marca' : 'Procurar por categoria' }}</option>
+                        @foreach (($headerCategories ?? []) as $cat)
+                            <option value="{{ url('/loja/categorias/'.$cat['slug']) }}">{{ $cat['name'] }}</option>
+                        @endforeach
+                    </select>
+
+                    <form class="d-flex flex-grow-1 gap-2" action="{{ url('/loja/pesquisa') }}" method="get" role="search">
+                        <input class="form-control flex-grow-1" type="search" name="q" value="{{ request('q') }}" placeholder="Procurar aqui..." aria-label="Pesquisar">
+                        <button class="search-btn" type="submit" aria-label="Pesquisar">
+                            <span aria-hidden="true">⌕</span>
+                        </button>
+                    </form>
                 </div>
-            </form>
+            </div>
+
+            <div class="ms-auto d-none d-lg-flex align-items-center gap-4">
+                <div class="account d-flex align-items-center gap-2">
+                    <div style="font-size: 28px; line-height: 1;">👤</div>
+                    <div>
+                        <small>Criar Conta</small>
+                        <div class="fw-semibold">Conta</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-</nav>
+</header>
 
 @yield('content')
 
 <footer class="border-top py-4 mt-4">
-    <div class="container text-muted small">
-        @if (config('storefront.catalog_provider') === 'tpsoftware')
-            Dados servidos via API TP Software (sem base de dados local).
-        @else
-            Dados servidos via API TelePecas (sem base de dados local).
-        @endif
-    </div>
+    <div class="container text-muted small"></div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>

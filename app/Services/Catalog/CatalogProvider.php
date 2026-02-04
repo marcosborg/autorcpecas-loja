@@ -26,6 +26,11 @@ interface CatalogProvider
     public function search(string $query, int $page = 1, int $perPage = 24): LengthAwarePaginator;
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function randomProducts(int $count = 24): array;
+
+    /**
      * @return list<array{slug: string, name: string}>
      */
     public function modelsForMakeSlug(string $makeSlug): array;
@@ -35,4 +40,3 @@ interface CatalogProvider
      */
     public function totalProductsBreakdown(): ?array;
 }
-

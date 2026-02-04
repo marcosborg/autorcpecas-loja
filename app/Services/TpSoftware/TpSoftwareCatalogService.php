@@ -24,7 +24,7 @@ class TpSoftwareCatalogService implements CatalogProvider
      */
     public function buildIndex(bool $force = false): array
     {
-        if (! $force && $this->indexStore->exists()) {
+        if (! $force && $this->indexStore->exists() && $this->indexStore->isFreshForCurrentConfig()) {
             $existing = $this->indexStore->load() ?? [];
 
             return [
@@ -89,19 +89,28 @@ class TpSoftwareCatalogService implements CatalogProvider
             $indexed = $this->indexedProducts();
 
             if ($indexed !== null) {
+                /** @var array<string, string> $names */
                 $names = [];
 
                 foreach ($indexed as $p) {
                     $make = (string) ($p['make_name'] ?? $p['category'] ?? '');
 
                     if ($make !== '') {
-                        $names[$make] = true;
+                        $make = trim($make);
+                        $key = mb_strtolower($make, 'UTF-8');
+                        if ($key === '') {
+                            continue;
+                        }
+
+                        if (! array_key_exists($key, $names)) {
+                            $names[$key] = $this->formatMakeName($make);
+                        }
                     }
                 }
 
                 $cats = [];
 
-                foreach (array_keys($names) as $name) {
+                foreach (array_values($names) as $name) {
                     $slug = Str::slug($name);
 
                     if ($slug === '') {
@@ -135,6 +144,7 @@ class TpSoftwareCatalogService implements CatalogProvider
 
             $startedAt = microtime(true);
 
+            /** @var array<string, string> $names */
             $names = [];
 
             for ($page = 1; $page <= $maxPages; $page++) {
@@ -162,7 +172,15 @@ class TpSoftwareCatalogService implements CatalogProvider
                     $value = data_get($item, $makeField);
 
                     if (is_string($value) && trim($value) !== '') {
-                        $names[trim($value)] = true;
+                        $value = trim($value);
+                        $key = mb_strtolower($value, 'UTF-8');
+                        if ($key === '') {
+                            continue;
+                        }
+
+                        if (! array_key_exists($key, $names)) {
+                            $names[$key] = $this->formatMakeName($value);
+                        }
                     }
                 }
 
@@ -173,7 +191,7 @@ class TpSoftwareCatalogService implements CatalogProvider
 
             $cats = [];
 
-            foreach (array_keys($names) as $name) {
+            foreach (array_values($names) as $name) {
                 $slug = Str::slug($name);
 
                 if ($slug === '') {
@@ -191,6 +209,24 @@ class TpSoftwareCatalogService implements CatalogProvider
 
             return $cats;
         });
+    }
+
+    private function formatMakeName(string $value): string
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        $letters = preg_replace('/[^\\pL]+/u', '', $value) ?? '';
+        $isAllCaps = $letters !== '' && mb_strtoupper($letters, 'UTF-8') === $letters;
+
+        if ($isAllCaps && mb_strlen($letters, 'UTF-8') <= 6) {
+            return $value;
+        }
+
+        return mb_convert_case(mb_strtolower($value, 'UTF-8'), MB_CASE_TITLE, 'UTF-8');
     }
 
     public function totalProducts(): int
@@ -218,6 +254,7 @@ class TpSoftwareCatalogService implements CatalogProvider
         $stateSlug = (string) request()->query('state', '');
         $conditionSlug = (string) request()->query('condition', '');
         $priceKey = (string) request()->query('price', '');
+        $pieceSlug = (string) request()->query('piece', '');
 
         $indexed = (bool) config('tpsoftware.catalog.index_enabled', true)
             ? $this->indexedProducts()
@@ -250,7 +287,7 @@ class TpSoftwareCatalogService implements CatalogProvider
 
             unset($query['page']);
 
-            foreach (['model', 'state', 'condition', 'price', 'perPage'] as $key) {
+            foreach (['model', 'state', 'condition', 'price', 'piece', 'perPage'] as $key) {
                 if (! array_key_exists($key, $query)) {
                     continue;
                 }
@@ -266,7 +303,7 @@ class TpSoftwareCatalogService implements CatalogProvider
         $facets = $this->facetsFromProducts($base, $buildUrl);
 
         $filtered = $base
-            ->filter(function (array $p) use ($stateSlug, $conditionSlug, $priceKey, $facets): bool {
+            ->filter(function (array $p) use ($stateSlug, $conditionSlug, $priceKey, $pieceSlug, $facets): bool {
                 if ($stateSlug !== '') {
                     $wanted = $this->facetNameFromSlug($facets['states'] ?? [], $stateSlug);
                     if ($wanted !== '' && strcasecmp((string) ($p['state_name'] ?? ''), $wanted) !== 0) {
@@ -284,6 +321,13 @@ class TpSoftwareCatalogService implements CatalogProvider
                 if ($priceKey !== '') {
                     $bucket = $this->priceBucketKey($p['price'] ?? null);
                     if ($bucket !== $priceKey) {
+                        return false;
+                    }
+                }
+
+                if ($pieceSlug !== '') {
+                    $wanted = $this->facetNameFromSlug($facets['piece_categories'] ?? [], $pieceSlug);
+                    if ($wanted !== '' && strcasecmp($this->pieceCategoryName((string) ($p['title'] ?? '')), $wanted) !== 0) {
                         return false;
                     }
                 }
@@ -387,6 +431,28 @@ class TpSoftwareCatalogService implements CatalogProvider
             'path' => url('/loja/pesquisa'),
             'query' => request()->query(),
         ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function randomProducts(int $count = 24): array
+    {
+        $count = max(1, min(200, $count));
+
+        $indexed = (bool) config('tpsoftware.catalog.index_enabled', true)
+            ? $this->indexedProducts()
+            : null;
+
+        if ($indexed === null) {
+            throw new \RuntimeException('TP Software: índice de produtos ainda não foi gerado. Corre: php artisan tpsoftware:index');
+        }
+
+        return collect($indexed)
+            ->shuffle()
+            ->take($count)
+            ->values()
+            ->all();
     }
 
     public function modelsForMakeSlug(string $makeSlug): array
@@ -622,7 +688,9 @@ class TpSoftwareCatalogService implements CatalogProvider
     private function normalizeProduct(array $raw, bool $includeRaw = false): array
     {
         $id = data_get($raw, 'id');
-        $reference = data_get($raw, 'part_code') ?? data_get($raw, 'parts_internal_id');
+        $reference = $this->extractPieceReference($raw)
+            ?? data_get($raw, 'part_code')
+            ?? data_get($raw, 'parts_internal_id');
         $title = data_get($raw, 'product_name') ?? data_get($raw, 'part_description') ?? $reference ?? (string) $id;
         $category = (string) (data_get($raw, (string) config('tpsoftware.catalog.category_field', 'vehicle_make_name')) ?? 'Outros');
         $modelName = (string) (data_get($raw, (string) config('tpsoftware.catalog.model_field', 'vehicle_model_name')) ?? '');
@@ -664,6 +732,37 @@ class TpSoftwareCatalogService implements CatalogProvider
         return $normalized;
     }
 
+    private function extractPieceReference(array $raw): ?string
+    {
+        $refs = data_get($raw, 'parts_reference');
+
+        if (! is_array($refs) || ! array_is_list($refs)) {
+            return null;
+        }
+
+        $first = null;
+
+        foreach ($refs as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $code = data_get($item, 'reference_code');
+            if (! is_scalar($code) || trim((string) $code) === '') {
+                continue;
+            }
+
+            $first ??= trim((string) $code);
+
+            $isMain = data_get($item, 'is_main');
+            if ($isMain === 1 || $isMain === '1' || $isMain === true) {
+                return trim((string) $code);
+            }
+        }
+
+        return $first;
+    }
+
     /**
      * @return list<array<string, mixed>>|null
      */
@@ -686,6 +785,7 @@ class TpSoftwareCatalogService implements CatalogProvider
         $states = [];
         $conditions = [];
         $prices = [];
+        $pieceCategories = [];
 
         foreach ($products as $p) {
             $state = trim((string) ($p['state_name'] ?? ''));
@@ -702,6 +802,11 @@ class TpSoftwareCatalogService implements CatalogProvider
 
             $bucketKey = $this->priceBucketKey($p['price'] ?? null);
             $prices[$bucketKey] = ($prices[$bucketKey] ?? 0) + 1;
+
+            $piece = $this->pieceCategoryName((string) ($p['title'] ?? ''));
+            if ($piece !== '') {
+                $pieceCategories[$piece] = ($pieceCategories[$piece] ?? 0) + 1;
+            }
         }
 
         if (count($states) === 1 && isset($states['N/A'])) {
@@ -760,6 +865,22 @@ class TpSoftwareCatalogService implements CatalogProvider
             ];
         }
 
+        $pieceOpts = [];
+        foreach ($pieceCategories as $name => $count) {
+            $slug = Str::slug($name);
+            if ($slug === '') {
+                continue;
+            }
+
+            $pieceOpts[] = [
+                'slug' => $slug,
+                'name' => $name,
+                'count' => $count,
+                'url' => $buildUrl(['piece' => $slug, 'page' => 1]),
+            ];
+        }
+        usort($pieceOpts, fn ($a, $b) => strnatcasecmp($a['name'], $b['name']));
+
         return [
             'states' => $stateOpts,
             'states_all_url' => $buildUrl(['state' => null, 'page' => 1]),
@@ -767,6 +888,8 @@ class TpSoftwareCatalogService implements CatalogProvider
             'conditions_all_url' => $buildUrl(['condition' => null, 'page' => 1]),
             'prices' => $priceOpts,
             'prices_all_url' => $buildUrl(['price' => null, 'page' => 1]),
+            'piece_categories' => $pieceOpts,
+            'piece_categories_all_url' => $buildUrl(['piece' => null, 'page' => 1]),
         ];
     }
 
@@ -782,6 +905,45 @@ class TpSoftwareCatalogService implements CatalogProvider
         }
 
         return '';
+    }
+
+    private function pieceCategoryName(string $title): string
+    {
+        $title = trim($title);
+
+        if ($title === '') {
+            return '';
+        }
+
+        $title = preg_replace('/\\s+/', ' ', $title) ?? $title;
+        $title = preg_replace('/\\s*\\(.*?\\)\\s*/', ' ', $title) ?? $title;
+        $title = preg_replace('/\\s*,\\s*.*$/', '', $title) ?? $title;
+
+        $firstChunk = preg_split('/\\s*[-–—|\\/]+\\s*/u', $title)[0] ?? $title;
+        $firstChunk = trim($firstChunk);
+
+        if ($firstChunk === '') {
+            return '';
+        }
+
+        $words = preg_split('/\\s+/u', $firstChunk) ?: [];
+        $words = array_values(array_filter($words, fn ($w) => is_string($w) && trim($w) !== ''));
+
+        if (count($words) === 0) {
+            return '';
+        }
+
+        $w1 = mb_strtolower($words[0], 'UTF-8');
+        $multi = in_array($w1, ['kit', 'jogo', 'conjunto'], true);
+
+        $take = $multi ? 2 : 1;
+        if (! $multi && mb_strlen($words[0], 'UTF-8') <= 3) {
+            $take = 2;
+        }
+
+        $picked = array_slice($words, 0, min($take, count($words)));
+
+        return trim(implode(' ', $picked));
     }
 
     private function priceBucketKey(mixed $price): string

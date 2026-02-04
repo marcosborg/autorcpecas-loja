@@ -47,6 +47,22 @@
 
                 @php($facets = $facets ?? [])
 
+                @if (!empty($facets['piece_categories'] ?? []))
+                    <div class="card mt-3">
+                        <div class="card-header fw-semibold">Categoria da peça</div>
+                        <div class="card-body">
+                            <select id="pieceCategorySelect" class="form-select store-filter-select">
+                                <option value="{{ $facets['piece_categories_all_url'] ?? url('/loja/categorias/'.$selectedCategorySlug) }}" @if(empty($selectedPiece ?? '')) selected @endif>Todos</option>
+                                @foreach (($facets['piece_categories'] ?? []) as $opt)
+                                    <option value="{{ $opt['url'] ?? '#' }}" @if(($selectedPiece ?? '') === ($opt['slug'] ?? '')) selected @endif>
+                                        {{ $opt['name'] }} ({{ $opt['count'] }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                @endif
+
                 @if (!empty($selectedCategorySlug ?? '') && config('storefront.catalog_provider') === 'tpsoftware' && empty($facets['states'] ?? []) && empty($facets['conditions'] ?? []))
                     <div class="alert alert-light border mt-3 mb-0 small">
                         Dica: para ativar filtros de <strong>Estado</strong> e <strong>Condição</strong>, reconstrói o índice: <code>php artisan tpsoftware:index --force</code>

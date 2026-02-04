@@ -11,6 +11,7 @@ class StoreProductController extends Controller
     {
         try {
             $product = $catalog->product($idOrReference);
+            $headerCategories = $catalog->categories();
         } catch (\RuntimeException $e) {
             return response()
                 ->view('store.error', ['message' => $e->getMessage()], 503);
@@ -22,6 +23,7 @@ class StoreProductController extends Controller
 
         return view('store.product', [
             'product' => $product,
+            'headerCategories' => $headerCategories ?? [],
         ]);
     }
 }
