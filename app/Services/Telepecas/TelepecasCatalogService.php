@@ -703,24 +703,8 @@ class TelepecasCatalogService implements CatalogProvider
             $images = [];
         }
 
-        $imageUrls = [];
-
-        foreach ($images as $image) {
-            if (is_string($image) && $image !== '') {
-                $imageUrls[] = $image;
-                continue;
-            }
-
-            if (is_array($image)) {
-                $url = data_get($image, 'urlImage')
-                    ?? data_get($image, 'url')
-                    ?? data_get($image, 'urlImageThumbnail');
-
-                if (is_string($url) && $url !== '') {
-                    $imageUrls[] = $url;
-                }
-            }
-        }
+        $imageUrls = $this->normalizeImageUrls($images);
+        $coverUrl = $this->pickCoverUrlFromTelepecasImages($images) ?? ($imageUrls[0] ?? null);
 
         $normalized = [
             'id' => $id,
@@ -735,6 +719,7 @@ class TelepecasCatalogService implements CatalogProvider
             'vat' => $vat,
             'stock' => $stock,
             'images' => array_values(array_unique($imageUrls)),
+            'cover_image' => is_string($coverUrl) && $coverUrl !== '' ? $coverUrl : null,
         ];
 
         if ($includeRaw) {
@@ -742,6 +727,141 @@ class TelepecasCatalogService implements CatalogProvider
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param  list<mixed>  $images
+     */
+    private function pickCoverUrlFromTelepecasImages(array $images): ?string
+    {
+        foreach ($images as $image) {
+            if (! is_array($image)) {
+                continue;
+            }
+
+            if (! $this->isCoverImage($image)) {
+                continue;
+            }
+
+            $url = data_get($image, 'urlImage')
+                ?? data_get($image, 'url')
+                ?? data_get($image, 'urlImageThumbnail');
+
+            if (is_string($url) && trim($url) !== '') {
+                return trim($url);
+            }
+        }
+
+        foreach ($images as $image) {
+            if (is_string($image) && trim($image) !== '') {
+                return trim($image);
+            }
+
+            if (is_array($image)) {
+                $url = data_get($image, 'urlImage')
+                    ?? data_get($image, 'url')
+                    ?? data_get($image, 'urlImageThumbnail');
+
+                if (is_string($url) && trim($url) !== '') {
+                    return trim($url);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Ordena imagens garantindo que a "capa" (cover) vem primeiro quando a TelePeças a sinaliza no payload.
+     *
+     * @param  list<mixed>  $images
+     * @return list<string>
+     */
+    private function normalizeImageUrls(array $images): array
+    {
+        $out = [];
+        $seen = [];
+
+        foreach ($images as $image) {
+            if (is_string($image)) {
+                $url = trim($image);
+                if ($url === '') {
+                    continue;
+                }
+
+                $key = mb_strtolower($url, 'UTF-8');
+                if (! isset($seen[$key])) {
+                    $seen[$key] = true;
+                    $out[] = $url;
+                }
+
+                continue;
+            }
+
+            if (! is_array($image)) {
+                continue;
+            }
+
+            $url = data_get($image, 'urlImage')
+                ?? data_get($image, 'url')
+                ?? data_get($image, 'urlImageThumbnail');
+
+            if (! is_string($url) || trim($url) === '') {
+                continue;
+            }
+
+            $url = trim($url);
+            $key = mb_strtolower($url, 'UTF-8');
+
+            if (! isset($seen[$key])) {
+                $seen[$key] = true;
+                $out[] = $url;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  array<string, mixed>  $image
+     */
+    private function isCoverImage(array $image): bool
+    {
+        foreach (['isCover', 'is_cover', 'cover', 'isMain', 'is_main', 'main', 'isPrimary', 'is_primary', 'primary', 'default', 'isDefault', 'is_default'] as $key) {
+            $value = data_get($image, $key);
+            if ($this->isTruthy($value)) {
+                return true;
+            }
+        }
+
+        foreach (['type', 'role', 'kind', 'imageType', 'image_type', 'tag', 'label'] as $key) {
+            $value = data_get($image, $key);
+            if (! is_string($value) || trim($value) === '') {
+                continue;
+            }
+
+            $v = mb_strtolower(trim($value), 'UTF-8');
+            if (str_contains($v, 'cover') || str_contains($v, 'capa') || str_contains($v, 'principal') || str_contains($v, 'main') || str_contains($v, 'front')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isTruthy(mixed $value): bool
+    {
+        if ($value === true || $value === 1 || $value === '1') {
+            return true;
+        }
+
+        if (! is_string($value)) {
+            return false;
+        }
+
+        $v = mb_strtolower(trim($value), 'UTF-8');
+
+        return in_array($v, ['true', 'yes', 'y', 'sim', 's'], true);
     }
 
     /**

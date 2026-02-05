@@ -4,6 +4,12 @@
     @php($make = (string) ($product['make_name'] ?? $product['category'] ?? ''))
     @php($model = (string) ($product['model_name'] ?? ''))
     @php($images = array_values(array_filter($product['images'] ?? [], fn ($u) => is_string($u) && $u !== '')))
+    @php($cover = (string) ($product['cover_image'] ?? ''))
+    @php($carouselImages = $images)
+    @if ($cover !== '' && in_array($cover, $images, true))
+        @php($carouselImages = array_values(array_filter($images, fn ($u) => $u !== $cover)))
+        @php(array_unshift($carouselImages, $cover))
+    @endif
 
     <div class="container-xl">
         <nav aria-label="breadcrumb" class="mb-3">
@@ -31,16 +37,16 @@
 
                     <div id="{{ $carouselId }}" class="carousel slide" data-bs-ride="false">
                         <div class="carousel-inner">
-                            @if (count($images) === 0)
+                            @if (count($carouselImages) === 0)
                                 <div class="carousel-item active">
                                     <img
                                         class="d-block w-100 product-main-img"
                                         src="data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;800&quot; height=&quot;600&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f2f2f2&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; dominant-baseline=&quot;middle&quot; text-anchor=&quot;middle&quot; fill=&quot;%23666&quot; font-family=&quot;Arial&quot; font-size=&quot;20&quot;>Sem imagem</text></svg>"
                                         alt=""
                                     >
-                                </div>
+                            </div>
                             @else
-                                @foreach ($images as $img)
+                                @foreach ($carouselImages as $img)
                                     <div class="carousel-item @if($loop->first) active @endif">
                                         <img
                                             class="d-block w-100 product-main-img"
@@ -56,7 +62,7 @@
                             @endif
                         </div>
 
-                        @if (count($images) > 1)
+                        @if (count($carouselImages) > 1)
                             <button class="carousel-control-prev" type="button" data-bs-target="#{{ $carouselId }}" data-bs-slide="prev">
                                 <span class="carousel-control-prev-icon" aria-hidden="true"></span>
                                 <span class="visually-hidden">Anterior</span>
@@ -68,10 +74,10 @@
                         @endif
                     </div>
 
-                    @if (count($images) > 1)
+                    @if (count($carouselImages) > 1)
                         <div class="card-body">
                             <div class="d-flex flex-wrap gap-2">
-                                @foreach ($images as $thumb)
+                                @foreach ($carouselImages as $thumb)
                                     <button
                                         type="button"
                                         class="product-thumb-btn @if($loop->first) is-active @endif"
@@ -164,4 +170,19 @@
             });
         })();
     </script>
+
+    @if (config('app.debug'))
+        <script>
+            (function () {
+                try {
+                    console.log('[Auto RC Peças] product.normalized', @json($product ?? null));
+                    console.log('[Auto RC Peças] product.raw', @json($product['raw'] ?? null));
+                    console.log('[Auto RC Peças] product.raw.images', @json(data_get($product['raw'] ?? [], 'images')));
+                    console.log('[Auto RC Peças] product.raw.image_list', @json(data_get($product['raw'] ?? [], 'image_list')));
+                } catch (e) {
+                    console.warn('[Auto RC Peças] Falha a logar JSON do produto', e);
+                }
+            })();
+        </script>
+    @endif
 @endsection

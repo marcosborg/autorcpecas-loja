@@ -32,7 +32,7 @@ class HomeController extends Controller
         }
 
         try {
-            $products = $catalog->randomProducts(24);
+            $products = $catalog->randomProducts(16);
         } catch (\RuntimeException $e) {
             $products = [];
         }

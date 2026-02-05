@@ -337,7 +337,11 @@ class TpSoftwareCatalogService implements CatalogProvider
             ->values();
 
         $total = $filtered->count();
-        $items = $filtered->slice(($page - 1) * $perPage, $perPage)->values()->all();
+        $items = $filtered
+            ->slice(($page - 1) * $perPage, $perPage)
+            ->values()
+            ->map(fn (array $p): array => $this->withCoverImage($p))
+            ->all();
 
         return [
             'categoryName' => $makeName,
@@ -372,12 +376,18 @@ class TpSoftwareCatalogService implements CatalogProvider
             : null;
 
         if ($indexed !== null) {
-            foreach ($indexed as $p) {
+            foreach ($indexed as $idx => $p) {
                 $id = (string) (($p['id'] ?? '') ?: '');
                 $ref = (string) (($p['reference'] ?? '') ?: '');
 
                 if ($id === $idOrReference || ($ref !== '' && strcasecmp($ref, $idOrReference) === 0)) {
-                    return $p;
+                    $raw = $this->fetchProductRawByIdOrReference($idOrReference, is_int($idx) ? $idx : null);
+
+                    if (is_array($raw)) {
+                        return $this->normalizeProduct($raw, includeRaw: true);
+                    }
+
+                    return $this->withCoverImage($p);
                 }
             }
         }
@@ -425,7 +435,11 @@ class TpSoftwareCatalogService implements CatalogProvider
             ->values();
 
         $total = $matching->count();
-        $items = $matching->slice(($page - 1) * $perPage, $perPage)->values()->all();
+        $items = $matching
+            ->slice(($page - 1) * $perPage, $perPage)
+            ->values()
+            ->map(fn (array $p): array => $this->withCoverImage($p))
+            ->all();
 
         return new LengthAwarePaginator($items, $total, $perPage, $page, [
             'path' => url('/loja/pesquisa'),
@@ -452,6 +466,7 @@ class TpSoftwareCatalogService implements CatalogProvider
             ->shuffle()
             ->take($count)
             ->values()
+            ->map(fn (array $p): array => $this->withCoverImage($p))
             ->all();
     }
 
@@ -698,15 +713,8 @@ class TpSoftwareCatalogService implements CatalogProvider
         $conditionName = (string) (data_get($raw, 'condition_name') ?? '');
 
         $images = data_get($raw, 'image_list');
-        $imageUrls = [];
-
-        if (is_array($images)) {
-            foreach ($images as $image) {
-                if (is_array($image) && is_string($image['image_url'] ?? null)) {
-                    $imageUrls[] = $image['image_url'];
-                }
-            }
-        }
+        $imageUrls = is_array($images) ? $this->normalizeImageUrlsFromImageList($images) : [];
+        $coverUrl = is_array($images) ? $this->pickCoverUrlFromImageList($images) : ($imageUrls[0] ?? null);
 
         $normalized = [
             'id' => $id,
@@ -721,6 +729,7 @@ class TpSoftwareCatalogService implements CatalogProvider
             'vat' => data_get($raw, 'vat_included'),
             'stock' => data_get($raw, 'quantity'),
             'images' => array_values(array_unique(array_filter($imageUrls))),
+            'cover_image' => is_string($coverUrl) && $coverUrl !== '' ? $coverUrl : null,
             'state_name' => $stateName,
             'condition_name' => $conditionName,
         ];
@@ -730,6 +739,398 @@ class TpSoftwareCatalogService implements CatalogProvider
         }
 
         return $normalized;
+    }
+
+    /**
+     * Garante que um item do índice tem `cover_image` coerente, sem reordenar `images`.
+     *
+     * @param  array<string, mixed>  $product
+     * @return array<string, mixed>
+     */
+    private function withCoverImage(array $product): array
+    {
+        $existing = $product['cover_image'] ?? null;
+
+        if (is_string($existing) && trim($existing) !== '') {
+            return $product;
+        }
+
+        $images = $product['images'] ?? null;
+
+        if (! is_array($images) || count($images) === 0) {
+            return [
+                ...$product,
+                'cover_image' => null,
+            ];
+        }
+
+        $urls = array_values(array_filter($images, fn ($u): bool => is_string($u) && trim($u) !== ''));
+
+        if (count($urls) === 0) {
+            return [
+                ...$product,
+                'cover_image' => null,
+            ];
+        }
+
+        return [
+            ...$product,
+            'cover_image' => $this->pickCoverUrlFromUrls($urls) ?? $urls[0],
+        ];
+    }
+
+    /**
+     * @param  list<string>  $urls
+     */
+    private function pickCoverUrlFromUrls(array $urls): ?string
+    {
+        $best = null;
+        $bestId = null;
+        $bestTs = null;
+
+        foreach ($urls as $url) {
+            $u = trim($url);
+            if ($u === '') {
+                continue;
+            }
+
+            if (preg_match('~/(\\d{10,})-~', $u, $m) === 1) {
+                $ts = (int) $m[1];
+                if ($bestTs === null || $ts < $bestTs) {
+                    $bestTs = $ts;
+                    $best = $u;
+                }
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function fetchProductRawByIdOrReference(string $idOrReference, ?int $indexPosition = null): ?array
+    {
+        $idOrReference = trim($idOrReference);
+
+        if ($idOrReference === '') {
+            return null;
+        }
+
+        $cache = Cache::store((string) config('tpsoftware.cache_store', 'file'));
+        $ttl = (int) config('tpsoftware.cache_ttl_seconds', 600);
+        $ttl = max(60, min(3600, $ttl));
+
+        $key = 'tpsoftware:product:raw:'.sha1(mb_strtolower($idOrReference, 'UTF-8'));
+
+        $existing = $cache->get($key, '__missing__');
+
+        if (is_array($existing)) {
+            /** @var array<string, mixed> */
+            return $existing;
+        }
+
+        if ($existing !== '__missing__') {
+            return null;
+        }
+
+        $found = $this->scanInventoryForProduct($idOrReference, $indexPosition);
+
+        if (is_array($found)) {
+            $cache->put($key, $found, $ttl);
+
+            return $found;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $raw
+     */
+    private function matchesIdOrReference(array $raw, string $idOrReference): bool
+    {
+        $needle = trim($idOrReference);
+
+        if ($needle === '') {
+            return false;
+        }
+
+        $id = data_get($raw, 'id');
+        if (is_scalar($id) && (string) $id !== '' && (string) $id === $needle) {
+            return true;
+        }
+
+        $ref = $this->extractPieceReference($raw)
+            ?? data_get($raw, 'part_code')
+            ?? data_get($raw, 'parts_internal_id');
+
+        if (is_scalar($ref) && (string) $ref !== '' && strcasecmp((string) $ref, $needle) === 0) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Fallback: como o endpoint de inventário nem sempre suporta pesquisa por referência,
+     * faz scan paginado até encontrar o produto (com limite de tempo/páginas).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function scanInventoryForProduct(string $idOrReference, ?int $indexPosition = null): ?array
+    {
+        $pageSize = (int) config('tpsoftware.catalog.index_page_size', 200);
+        $pageSize = max(1, min(500, $pageSize));
+
+        if (is_int($indexPosition) && $indexPosition >= 0) {
+            $hintPage = intdiv($indexPosition, $pageSize) + 1;
+
+            foreach ([$hintPage, $hintPage - 1, $hintPage + 1] as $page) {
+                if ($page < 1) {
+                    continue;
+                }
+
+                $result = $this->inventoryList([
+                    'limit' => $pageSize,
+                    'page' => $page,
+                    'search' => '',
+                ], 60, true);
+
+                if (! ($result['ok'] ?? false)) {
+                    break;
+                }
+
+                $items = $this->extractList($result['data'] ?? null);
+
+                foreach ($items as $raw) {
+                    if (! is_array($raw)) {
+                        continue;
+                    }
+
+                    if ($this->matchesIdOrReference($raw, $idOrReference)) {
+                        return $raw;
+                    }
+                }
+
+                if (count($items) < $pageSize) {
+                    break;
+                }
+            }
+        }
+
+        $maxPages = (int) env('TPSOFTWARE_PRODUCT_LOOKUP_MAX_PAGES', 50);
+        $maxPages = max(1, min(500, $maxPages));
+
+        $maxSeconds = (int) env('TPSOFTWARE_PRODUCT_LOOKUP_MAX_SECONDS', 12);
+        $maxSeconds = max(1, min(60, $maxSeconds));
+
+        $startedAt = microtime(true);
+
+        for ($page = 1; $page <= $maxPages; $page++) {
+            if ((microtime(true) - $startedAt) > $maxSeconds) {
+                break;
+            }
+
+            $result = $this->inventoryList([
+                'limit' => $pageSize,
+                'page' => $page,
+                'search' => $idOrReference,
+            ], 60, true);
+
+            if (! ($result['ok'] ?? false)) {
+                break;
+            }
+
+            $items = $this->extractList($result['data'] ?? null);
+
+            if (count($items) === 0) {
+                break;
+            }
+
+            foreach ($items as $raw) {
+                if (! is_array($raw)) {
+                    continue;
+                }
+
+                if ($this->matchesIdOrReference($raw, $idOrReference)) {
+                    return $raw;
+                }
+            }
+
+            if (count($items) < $pageSize) {
+                break;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<mixed>  $images
+     * @return list<string>
+     */
+    private function normalizeImageUrlsFromImageList(array $images): array
+    {
+        $out = [];
+        $seen = [];
+
+        foreach ($images as $image) {
+            if (! is_array($image)) {
+                continue;
+            }
+
+            $url = data_get($image, 'image_url')
+                ?? data_get($image, 'url')
+                ?? data_get($image, 'urlImage')
+                ?? data_get($image, 'url_image');
+
+            if (! is_string($url) || trim($url) === '') {
+                continue;
+            }
+
+            $url = trim($url);
+            $key = mb_strtolower($url, 'UTF-8');
+
+            if (! isset($seen[$key])) {
+                $seen[$key] = true;
+                $out[] = $url;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Decide a imagem de capa sem reordenar o array (a ordem original mantém-se em `images`).
+     *
+     * Regras:
+     *  1) Se houver flag explícita de cover/main → primeira com flag.
+     *  2) Senão → menor `id`.
+     *  3) Senão → menor timestamp no filename (número antes do "-").
+     *  4) Senão → primeira da API.
+     *
+     * @param  list<mixed>  $images
+     */
+    private function pickCoverUrlFromImageList(array $images): ?string
+    {
+        $items = [];
+
+        foreach ($images as $idx => $image) {
+            if (! is_array($image)) {
+                continue;
+            }
+
+            $url = data_get($image, 'image_url')
+                ?? data_get($image, 'url')
+                ?? data_get($image, 'urlImage')
+                ?? data_get($image, 'url_image');
+
+            if (! is_string($url) || trim($url) === '') {
+                continue;
+            }
+
+            $url = trim($url);
+
+            $id = data_get($image, 'id');
+            $id = is_numeric($id) ? (int) $id : null;
+
+            $ts = null;
+            if (preg_match('~/(\\d{10,})-~', $url, $m) === 1) {
+                $ts = (int) $m[1];
+            }
+
+            $items[] = [
+                'idx' => $idx,
+                'url' => $url,
+                'is_cover' => $this->isCoverImage($image),
+                'id' => $id,
+                'ts' => $ts,
+            ];
+        }
+
+        if (count($items) === 0) {
+            return null;
+        }
+
+        foreach ($items as $it) {
+            if (($it['is_cover'] ?? false) === true) {
+                return (string) $it['url'];
+            }
+        }
+
+        $withId = array_values(array_filter($items, static fn (array $it): bool => is_int($it['id'] ?? null)));
+        if (count($withId) > 0) {
+            usort($withId, static fn (array $a, array $b): int => ((int) $a['id']) <=> ((int) $b['id']));
+
+            return (string) $withId[0]['url'];
+        }
+
+        $withTs = array_values(array_filter($items, static fn (array $it): bool => is_int($it['ts'] ?? null)));
+        if (count($withTs) > 0) {
+            usort($withTs, static fn (array $a, array $b): int => ((int) $a['ts']) <=> ((int) $b['ts']));
+
+            return (string) $withTs[0]['url'];
+        }
+
+        return (string) $items[0]['url'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $image
+     */
+    private function isCoverImage(array $image): bool
+    {
+        foreach (['isCover', 'is_cover', 'cover', 'isMain', 'is_main', 'main', 'isPrimary', 'is_primary', 'primary', 'default', 'isDefault', 'is_default'] as $key) {
+            $value = data_get($image, $key);
+            if ($this->isTruthy($value)) {
+                return true;
+            }
+        }
+
+        foreach (['type', 'role', 'kind', 'imageType', 'image_type', 'tag', 'label'] as $key) {
+            $value = data_get($image, $key);
+            if (! is_string($value) || trim($value) === '') {
+                continue;
+            }
+
+            $v = mb_strtolower(trim($value), 'UTF-8');
+            if (str_contains($v, 'cover') || str_contains($v, 'capa') || str_contains($v, 'principal') || str_contains($v, 'main') || str_contains($v, 'front')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $image
+     */
+    private function explicitImageOrder(array $image): ?int
+    {
+        foreach (['order', 'position', 'sort', 'sortOrder', 'sort_order', 'index'] as $key) {
+            $value = data_get($image, $key);
+            if (is_numeric($value)) {
+                return (int) $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function isTruthy(mixed $value): bool
+    {
+        if ($value === true || $value === 1 || $value === '1') {
+            return true;
+        }
+
+        if (! is_string($value)) {
+            return false;
+        }
+
+        $v = mb_strtolower(trim($value), 'UTF-8');
+
+        return in_array($v, ['true', 'yes', 'y', 'sim', 's'], true);
     }
 
     private function extractPieceReference(array $raw): ?string

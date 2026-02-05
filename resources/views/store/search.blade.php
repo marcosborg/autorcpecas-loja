@@ -17,7 +17,7 @@
         @else
             <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
                 @foreach ($results as $p)
-                    @php($img = $p['images'][0] ?? null)
+                    @php($img = $p['cover_image'] ?? ($p['images'][0] ?? null))
                     @php($productKey = (string) (($p['id'] ?? null) ?: ($p['reference'] ?? '')))
                     <div class="col">
                         <div class="card h-100">
