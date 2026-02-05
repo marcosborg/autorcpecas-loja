@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Services\Catalog\CatalogProvider;
+use App\Services\Database\DbEnvironment;
 use App\Services\Telepecas\TelepecasCatalogService;
 use App\Services\TpSoftware\TpSoftwareCatalogService;
 use Illuminate\Pagination\Paginator;
@@ -30,6 +31,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        app(DbEnvironment::class)->apply();
         Paginator::useBootstrapFive();
     }
 }

@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Banner extends Model
 {
+    protected $connection = 'content';
+
     /**
      * @var list<string>
      */
@@ -30,4 +32,3 @@ class Banner extends Model
         ];
     }
 }
-

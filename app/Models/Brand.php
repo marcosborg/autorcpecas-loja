@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Brand extends Model
 {
+    protected $connection = 'content';
+
     /**
      * @var list<string>
      */
@@ -28,4 +30,3 @@ class Brand extends Model
         ];
     }
 }
-

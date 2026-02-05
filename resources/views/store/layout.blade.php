@@ -46,7 +46,15 @@
         .page-link { color: #700000; }
         .page-link:hover { color: #5a0000; }
 
-        .store-img { width: 100%; height: 180px; object-fit: cover; background: #f2f2f2; display: block; }
+        .store-img {
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            height: auto;
+            object-fit: cover;
+            object-position: center bottom;
+            background: #f2f2f2;
+            display: block;
+        }
         .store-list-scroll { max-height: 380px; overflow: auto; }
         .select2-container--default .select2-selection--single { height: 38px; border: 1px solid #dee2e6; border-radius: .375rem; }
         .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px; padding-left: 12px; }
@@ -66,10 +74,8 @@
         .store-topnav .btn-contact:hover { background: #5a0000; border-color: #5a0000; color: #fff; }
 
         .store-searchbar { background: linear-gradient(90deg, #5a0000, #700000); }
-        .store-searchbar .form-control, .store-searchbar .form-select { border: 0; border-radius: .5rem; height: 44px; }
+        .store-searchbar .form-select { border: 0; border-radius: .5rem; height: 44px; }
         .store-searchbar .search-wrap { max-width: 760px; width: 100%; }
-        .store-searchbar .search-btn { width: 48px; border-radius: .5rem; border: 0; background: #4a0000; color: #fff; }
-        .store-searchbar .search-btn:hover { background: #3d0000; }
         .store-searchbar .account { color: #fff; font-size: .9rem; }
         .store-searchbar .account small { display: block; opacity: .85; }
 
@@ -115,19 +121,21 @@
             <div class="search-wrap">
                 <div class="d-flex gap-2">
                     @php($headerCategories = $headerCategories ?? ($categories ?? []))
-                    <select class="form-select store-filter-select" style="max-width: 260px;">
+                    <select class="form-select store-filter-select w-100">
                         <option value="{{ url('/loja/categorias') }}">{{ config('storefront.catalog_provider') === 'tpsoftware' ? 'Procurar por marca' : 'Procurar por categoria' }}</option>
                         @foreach (($headerCategories ?? []) as $cat)
                             <option value="{{ url('/loja/categorias/'.$cat['slug']) }}">{{ $cat['name'] }}</option>
                         @endforeach
                     </select>
 
+                    @if (false)
                     <form class="d-flex flex-grow-1 gap-2" action="{{ url('/loja/pesquisa') }}" method="get" role="search">
                         <input class="form-control flex-grow-1" type="search" name="q" value="{{ request('q') }}" placeholder="Procurar aqui..." aria-label="Pesquisar">
                         <button class="search-btn" type="submit" aria-label="Pesquisar">
                             <span aria-hidden="true">⌕</span>
                         </button>
                     </form>
+                    @endif
                 </div>
             </div>
 
