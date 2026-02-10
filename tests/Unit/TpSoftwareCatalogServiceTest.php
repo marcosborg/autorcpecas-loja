@@ -119,4 +119,42 @@ class TpSoftwareCatalogServiceTest extends TestCase
         $this->assertSame(1, $result->total());
         $this->assertSame(2306, (int) $result->items()[0]['id']);
     }
+
+    public function test_exact_reference_uses_part_price_when_price_fields_are_missing(): void
+    {
+        config()->set('tpsoftware.catalog.index_enabled', true);
+        config()->set('tpsoftware.cache_store', 'array');
+        Cache::store('array')->flush();
+
+        $client = $this->createMock(TpSoftwareClient::class);
+        $indexStore = $this->createMock(TpSoftwareIndexStore::class);
+
+        $indexStore->method('load')->willReturn([
+            ['id' => 7561, 'reference' => '96FG15K237AA', 'title' => 'Botao', 'make_name' => 'FORD', 'model_name' => 'FIESTA', 'images' => []],
+        ]);
+
+        $client->method('get')->willReturn([
+            'ok' => true,
+            'status' => 200,
+            'data' => [[
+                'id' => 7561,
+                'part_price' => '10.00',
+                'vat_included' => 0,
+                'part_code' => '96FG15K237AA',
+                'product_name' => 'Botao',
+                'vehicle_make_name' => 'FORD',
+                'vehicle_model_name' => 'FIESTA',
+                'image_list' => [],
+            ]],
+            'raw' => null,
+        ]);
+
+        $service = new TpSoftwareCatalogService($client, $indexStore);
+        $result = $service->search('96FG15K237AA');
+        $item = $result->items()[0] ?? null;
+
+        $this->assertNotNull($item);
+        $this->assertSame(10.0, (float) ($item['price'] ?? 0));
+        $this->assertSame(10.0, (float) ($item['price_ex_vat'] ?? 0));
+    }
 }

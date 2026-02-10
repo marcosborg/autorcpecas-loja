@@ -55,6 +55,8 @@
                     @php($fuelType = trim((string) ($p['fuel_type'] ?? '')))
                     @php($engineLine = trim((string) ($p['engine_label'] ?? '')))
                     @php($tpRef = trim((string) ($p['tp_reference'] ?? '')))
+                    @php($priceExVat = $p['price_ex_vat'] ?? ($p['price'] ?? null))
+                    @php($isConsultPrice = is_numeric($priceExVat) && (float) $priceExVat <= 0)
                     <article class="card search-result-item">
                         <div class="card-body">
                             <div class="d-flex flex-column flex-md-row gap-3">
@@ -88,6 +90,23 @@
                                     @endif
                                     @if ($tpRef !== '')
                                         <div class="meta-line mt-1"><strong>Ref. TP:</strong> {{ $tpRef }}</div>
+                                    @endif
+                                    @if (is_numeric($priceExVat))
+                                        <div class="mt-2">
+                                            <div class="store-price-box">
+                                                @if ($isConsultPrice)
+                                                    <div>
+                                                        <span class="price-amount" style="font-size: 1rem;">Sob consulta</span>
+                                                    </div>
+                                                @else
+                                                    <div>
+                                                        <span class="price-amount">{{ number_format((float) $priceExVat, 2, ',', ' ') }}</span>
+                                                        <span class="price-currency">EUR</span>
+                                                    </div>
+                                                    <div class="price-note">sem IVA</div>
+                                                @endif
+                                            </div>
+                                        </div>
                                     @endif
                                 </div>
                             </div>

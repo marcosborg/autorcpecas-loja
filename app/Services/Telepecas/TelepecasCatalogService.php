@@ -717,6 +717,7 @@ class TelepecasCatalogService implements CatalogProvider
             'model_name' => $modelName,
             'price' => $price,
             'vat' => $vat,
+            'price_ex_vat' => $this->priceWithoutVat($price, $vat),
             'stock' => $stock,
             'images' => array_values(array_unique($imageUrls)),
             'cover_image' => is_string($coverUrl) && $coverUrl !== '' ? $coverUrl : null,
@@ -727,6 +728,44 @@ class TelepecasCatalogService implements CatalogProvider
         }
 
         return $normalized;
+    }
+
+    private function priceWithoutVat(mixed $price, mixed $vat): ?float
+    {
+        if (! is_numeric($price)) {
+            return null;
+        }
+
+        $gross = (float) $price;
+        if ($gross < 0) {
+            return null;
+        }
+
+        $vatRate = $this->vatRateFromValue($vat);
+        if ($vatRate <= 0) {
+            return round($gross, 2);
+        }
+
+        return round($gross / (1 + ($vatRate / 100)), 2);
+    }
+
+    private function vatRateFromValue(mixed $vat): float
+    {
+        if (is_numeric($vat)) {
+            $n = (float) $vat;
+            if ($n <= 0) {
+                return 0.0;
+            }
+            if ($n > 1 && $n <= 100) {
+                return $n;
+            }
+        }
+
+        if ($this->isTruthy($vat)) {
+            return (float) env('STOREFRONT_DEFAULT_VAT_RATE', 23);
+        }
+
+        return 0.0;
     }
 
     /**

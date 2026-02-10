@@ -1,6 +1,22 @@
 @extends('store.layout', ['title' => $categoryName])
 
 @section('content')
+    <style>
+        .cat-product-title {
+            font-size: 1rem;
+            line-height: 1.25;
+        }
+        .cat-product-meta {
+            font-size: .86rem;
+            line-height: 1.3;
+            color: #4a4a4a;
+        }
+        .cat-product-meta strong {
+            color: #222;
+            font-weight: 700;
+        }
+    </style>
+
     <div class="container-xl">
         <div class="d-flex flex-wrap gap-2 align-items-end justify-content-between mb-3">
             <div>
@@ -31,8 +47,12 @@
         @else
             <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
                 @foreach ($products as $p)
-                    @php($img = $p['images'][0] ?? null)
+                    @php($img = $p['cover_image'] ?? ($p['images'][0] ?? null))
                     @php($productKey = (string) (($p['id'] ?? null) ?: ($p['reference'] ?? '')))
+                    @php($vehicleLine = trim((string) ($p['make_name'] ?? '').' '.(string) ($p['model_name'] ?? '')))
+                    @php($fuelType = trim((string) ($p['fuel_type'] ?? '')))
+                    @php($engineLine = trim((string) ($p['engine_label'] ?? '')))
+                    @php($tpRef = trim((string) ($p['tp_reference'] ?? '')))
                     <div class="col">
                         <div class="card h-100">
                             @if (is_string($img) && $img !== '')
@@ -47,19 +67,47 @@
                             @else
                                 <div class="store-img"></div>
                             @endif
-                            <div class="card-body">
-                                <h6 class="card-title mb-1">
+                            <div class="card-body d-flex flex-column">
+                                <h6 class="card-title mb-1 cat-product-title">
                                     <a class="link-primary text-decoration-none fw-semibold" href="{{ url('/loja/produtos/'.urlencode($productKey)) }}">{{ $p['title'] ?? 'Produto' }}</a>
                                 </h6>
-                                <div class="text-muted small">{{ $p['reference'] ?? '' }}</div>
+                                @if ($vehicleLine !== '')
+                                    <div class="cat-product-meta mb-1"><strong>{{ $vehicleLine }}</strong></div>
+                                @endif
+                                @if ($fuelType !== '')
+                                    <div class="cat-product-meta mb-1">{{ $fuelType }}</div>
+                                @endif
+                                @if ($engineLine !== '')
+                                    <div class="cat-product-meta mb-1"><strong>Motor:</strong> {{ $engineLine }}</div>
+                                @endif
+                                @if (!empty($p['reference'] ?? ''))
+                                    <div class="cat-product-meta mb-1"><strong>Ref.:</strong> {{ $p['reference'] }}</div>
+                                @endif
+                                @if ($tpRef !== '')
+                                    <div class="cat-product-meta"><strong>Ref. TP:</strong> {{ $tpRef }}</div>
+                                @endif
                             </div>
                             <div class="card-footer bg-white border-top-0 pt-0">
-                                <div class="d-flex flex-wrap gap-2">
-                                    @if (!is_null($p['price'] ?? null))
-                                        <span class="badge text-bg-primary">{{ $p['price'] }}&nbsp;&euro;</span>
+                                @php($priceExVat = $p['price_ex_vat'] ?? ($p['price'] ?? null))
+                                @php($isConsultPrice = is_numeric($priceExVat) && (float) $priceExVat <= 0)
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                    @if (is_numeric($priceExVat))
+                                        <div class="store-price-box">
+                                            @if ($isConsultPrice)
+                                                <div>
+                                                    <span class="price-amount" style="font-size: 1rem;">Sob consulta</span>
+                                                </div>
+                                            @else
+                                                <div>
+                                                    <span class="price-amount">{{ number_format((float) $priceExVat, 2, ',', ' ') }}</span>
+                                                    <span class="price-currency">EUR</span>
+                                                </div>
+                                                <div class="price-note">sem IVA</div>
+                                            @endif
+                                        </div>
                                     @endif
                                     @if (!is_null($p['stock'] ?? null))
-                                        <span class="badge text-bg-secondary">Stock: {{ $p['stock'] }}</span>
+                                        <span class="badge rounded-pill text-bg-secondary px-2 py-1">Stock: {{ $p['stock'] }}</span>
                                     @endif
                                 </div>
                             </div>

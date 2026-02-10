@@ -94,6 +94,38 @@
         .store-searchbar .account { color: #fff; font-size: .9rem; }
         .store-searchbar .account small { display: block; opacity: .85; }
 
+        .store-price-box {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 110px;
+            padding: .4rem .65rem;
+            border-radius: .55rem;
+            border: 1px solid #e9dada;
+            background: #fff;
+            line-height: 1.1;
+        }
+        .store-price-box .price-amount {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #111;
+            letter-spacing: .02em;
+        }
+        .store-price-box .price-currency {
+            font-size: .72rem;
+            font-weight: 700;
+            color: #5d5d5d;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            margin-left: .2rem;
+        }
+        .store-price-box .price-note {
+            margin-top: .2rem;
+            font-size: .78rem;
+            color: #6a6a6a;
+        }
+
         .product-main-img { height: 360px; object-fit: cover; background: #f2f2f2; }
         .product-thumb-btn { border: 1px solid #dee2e6; border-radius: .5rem; overflow: hidden; padding: 0; background: #fff; }
         .product-thumb-btn img { width: 72px; height: 72px; object-fit: cover; display: block; background: #f2f2f2; }

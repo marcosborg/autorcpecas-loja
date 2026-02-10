@@ -146,12 +146,26 @@
                                         @endif
                                     </div>
                                     <div class="card-footer bg-white border-top-0 pt-0">
-                                        <div class="d-flex flex-wrap gap-2">
-                                            @if (!is_null($p['price'] ?? null))
-                                                <span class="badge text-bg-primary">{{ $p['price'] }}&nbsp;&euro;</span>
+                                        @php($priceExVat = $p['price_ex_vat'] ?? ($p['price'] ?? null))
+                                        @php($isConsultPrice = is_numeric($priceExVat) && (float) $priceExVat <= 0)
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+                                            @if (is_numeric($priceExVat))
+                                                <div class="store-price-box">
+                                                    @if ($isConsultPrice)
+                                                        <div>
+                                                            <span class="price-amount" style="font-size: 1rem;">Sob consulta</span>
+                                                        </div>
+                                                    @else
+                                                        <div>
+                                                            <span class="price-amount">{{ number_format((float) $priceExVat, 2, ',', ' ') }}</span>
+                                                            <span class="price-currency">EUR</span>
+                                                        </div>
+                                                        <div class="price-note">sem IVA</div>
+                                                    @endif
+                                                </div>
                                             @endif
                                             @if (!is_null($p['stock'] ?? null))
-                                                <span class="badge text-bg-secondary">Stock: {{ $p['stock'] }}</span>
+                                                <span class="badge rounded-pill text-bg-secondary px-2 py-1">Stock: {{ $p['stock'] }}</span>
                                             @endif
                                         </div>
                                     </div>

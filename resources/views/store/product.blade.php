@@ -139,12 +139,26 @@
 
                 <div class="card mb-3">
                     <div class="card-body">
-                        <div class="d-flex flex-wrap gap-2">
-                            @if (!is_null($product['price'] ?? null))
-                                <span class="badge text-bg-primary fs-6">{{ $product['price'] }}&nbsp;&euro;</span>
+                        @php($priceExVat = $product['price_ex_vat'] ?? ($product['price'] ?? null))
+                        @php($isConsultPrice = is_numeric($priceExVat) && (float) $priceExVat <= 0)
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            @if (is_numeric($priceExVat))
+                                <div class="store-price-box">
+                                    @if ($isConsultPrice)
+                                        <div>
+                                            <span class="price-amount" style="font-size: 1rem;">Sob consulta</span>
+                                        </div>
+                                    @else
+                                        <div>
+                                            <span class="price-amount">{{ number_format((float) $priceExVat, 2, ',', ' ') }}</span>
+                                            <span class="price-currency">EUR</span>
+                                        </div>
+                                        <div class="price-note">sem IVA</div>
+                                    @endif
+                                </div>
                             @endif
                             @if (!is_null($product['stock'] ?? null))
-                                <span class="badge text-bg-secondary fs-6">Stock: {{ $product['stock'] }}</span>
+                                <span class="badge rounded-pill text-bg-secondary px-2 py-1">Stock: {{ $product['stock'] }}</span>
                             @endif
                             @if (!empty($product['state_name'] ?? ''))
                                 <span class="badge text-bg-light border fs-6">{{ $product['state_name'] }}</span>

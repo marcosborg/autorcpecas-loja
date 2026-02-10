@@ -859,6 +859,11 @@ class TpSoftwareCatalogService implements CatalogProvider
         $engineCode = trim((string) (data_get($raw, 'motor_code') ?? ''));
         $vehicleYear = trim((string) (data_get($raw, 'vehicle_year') ?? ''));
         $tpReference = trim((string) (data_get($raw, 'parts_internal_id') ?? ''));
+        $price = data_get($raw, 'price_1')
+            ?? data_get($raw, 'price_2')
+            ?? data_get($raw, 'part_price')
+            ?? data_get($raw, 'image_list.0.part_price');
+        $vat = data_get($raw, 'vat_included');
 
         $images = data_get($raw, 'image_list');
         $imageUrls = is_array($images) ? $this->normalizeImageUrlsFromImageList($images) : [];
@@ -873,8 +878,9 @@ class TpSoftwareCatalogService implements CatalogProvider
             'make_name' => $category,
             'model_id' => null,
             'model_name' => $modelName,
-            'price' => data_get($raw, 'price_1') ?? data_get($raw, 'price_2'),
-            'vat' => data_get($raw, 'vat_included'),
+            'price' => $price,
+            'vat' => $vat,
+            'price_ex_vat' => $this->priceWithoutVat($price, $vat),
             'stock' => data_get($raw, 'quantity'),
             'images' => array_values(array_unique(array_filter($imageUrls))),
             'cover_image' => is_string($coverUrl) && $coverUrl !== '' ? $coverUrl : null,
@@ -892,6 +898,44 @@ class TpSoftwareCatalogService implements CatalogProvider
         }
 
         return $normalized;
+    }
+
+    private function priceWithoutVat(mixed $price, mixed $vat): ?float
+    {
+        if (! is_numeric($price)) {
+            return null;
+        }
+
+        $gross = (float) $price;
+        if ($gross < 0) {
+            return null;
+        }
+
+        $vatRate = $this->vatRateFromValue($vat);
+        if ($vatRate <= 0) {
+            return round($gross, 2);
+        }
+
+        return round($gross / (1 + ($vatRate / 100)), 2);
+    }
+
+    private function vatRateFromValue(mixed $vat): float
+    {
+        if (is_numeric($vat)) {
+            $n = (float) $vat;
+            if ($n <= 0) {
+                return 0.0;
+            }
+            if ($n > 1 && $n <= 100) {
+                return $n;
+            }
+        }
+
+        if ($this->isTruthy($vat)) {
+            return (float) env('STOREFRONT_DEFAULT_VAT_RATE', 23);
+        }
+
+        return 0.0;
     }
 
     /**
