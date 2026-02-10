@@ -75,7 +75,22 @@
 
         .store-searchbar { background: linear-gradient(90deg, #5a0000, #700000); }
         .store-searchbar .form-select { border: 0; border-radius: .5rem; height: 44px; }
-        .store-searchbar .search-wrap { max-width: 760px; width: 100%; }
+        .store-searchbar .form-control { border: 0; border-radius: .5rem; height: 44px; }
+        .store-searchbar .select2-container .select2-selection--single { height: 44px; border: 0; border-radius: .5rem; }
+        .store-searchbar .select2-container .select2-selection--single .select2-selection__rendered { line-height: 44px; }
+        .store-searchbar .select2-container .select2-selection--single .select2-selection__arrow { height: 44px; }
+        .store-searchbar .search-split > * { flex: 1 1 0; min-width: 0; }
+        .store-searchbar .search-split > .store-filter-select { flex: 0 0 42%; }
+        .store-searchbar .search-split > .select2-container { flex: 0 0 42% !important; width: auto !important; min-width: 0; }
+        .store-searchbar .search-split > .search-form { flex: 0 0 58%; min-width: 0; }
+        .store-searchbar .search-form .btn { height: 44px; min-width: 92px; white-space: nowrap; }
+        .store-searchbar .autocomplete-wrap { position: relative; min-width: 0; }
+        .store-searchbar .autocomplete-menu { position: absolute; top: calc(100% + .25rem); left: 0; right: 0; z-index: 1080; background: #fff; border: 1px solid rgba(0, 0, 0, .12); border-radius: .5rem; box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15); max-height: 320px; overflow-y: auto; display: none; }
+        .store-searchbar .autocomplete-menu.is-visible { display: block; }
+        .store-searchbar .autocomplete-item { width: 100%; text-align: left; background: #fff; border: 0; padding: .55rem .75rem; line-height: 1.25; }
+        .store-searchbar .autocomplete-item:hover { background: #f8f9fa; }
+        .store-searchbar .autocomplete-title { display: block; font-weight: 600; color: #212529; }
+        .store-searchbar .autocomplete-ref { display: block; font-size: .82rem; color: #6c757d; }
         .store-searchbar .account { color: #fff; font-size: .9rem; }
         .store-searchbar .account small { display: block; opacity: .85; }
 
@@ -119,7 +134,7 @@
     <div class="store-searchbar py-3">
         <div class="container-xl d-flex align-items-center gap-3">
             <div class="search-wrap">
-                <div class="d-flex gap-2">
+                <div class="search-split d-flex flex-column flex-md-row gap-2">
                     @php($headerCategories = $headerCategories ?? ($categories ?? []))
                     <select class="form-select store-filter-select w-100">
                         <option value="{{ url('/loja/categorias') }}">{{ config('storefront.catalog_provider') === 'tpsoftware' ? 'Procurar por marca' : 'Procurar por categoria' }}</option>
@@ -128,20 +143,21 @@
                         @endforeach
                     </select>
 
-                    @if (false)
-                    <form class="d-flex flex-grow-1 gap-2" action="{{ url('/loja/pesquisa') }}" method="get" role="search">
-                        <input class="form-control flex-grow-1" type="search" name="q" value="{{ request('q') }}" placeholder="Procurar aqui..." aria-label="Pesquisar">
-                        <button class="search-btn" type="submit" aria-label="Pesquisar">
-                            <span aria-hidden="true">⌕</span>
+                    <form class="search-form d-flex flex-grow-1 gap-2" action="{{ url('/loja/pesquisa') }}" method="get" role="search" data-autocomplete-url="{{ url('/loja/pesquisa/sugestoes') }}">
+                        <div class="autocomplete-wrap flex-grow-1">
+                            <input class="form-control" type="search" name="q" value="{{ request('q') }}" placeholder="Procurar por referência" aria-label="Procurar por referência" autocomplete="off">
+                            <div class="autocomplete-menu" data-ref-suggestions role="listbox" aria-label="Sugestões de referência"></div>
+                        </div>
+                        <button class="btn btn-light px-3" type="submit" aria-label="Pesquisar referência">
+                            Pesquisar
                         </button>
                     </form>
-                    @endif
                 </div>
             </div>
 
             <div class="ms-auto d-none d-lg-flex align-items-center gap-4">
                 <div class="account d-flex align-items-center gap-2">
-                    <div style="font-size: 28px; line-height: 1;">👤</div>
+                    <div style="font-size: 28px; line-height: 1;">&#128100;</div>
                     <div>
                         <small>Criar Conta</small>
                         <div class="fw-semibold">Conta</div>
@@ -174,6 +190,111 @@
         jQuery(document).on('change', 'select.store-filter-select', function () {
             var value = jQuery(this).val();
             if (value) window.location.href = String(value);
+        });
+
+        var form = document.querySelector('form.search-form[data-autocomplete-url]');
+        if (!form) return;
+
+        var input = form.querySelector('input[name="q"]');
+        var menu = form.querySelector('[data-ref-suggestions]');
+        var endpoint = form.getAttribute('data-autocomplete-url') || '';
+        if (!input || !menu || endpoint === '') return;
+
+        var debounceTimer = null;
+        var abortController = null;
+
+        function hideMenu() {
+            menu.classList.remove('is-visible');
+            menu.innerHTML = '';
+        }
+
+        function renderMenu(items) {
+            if (!Array.isArray(items) || items.length === 0) {
+                hideMenu();
+                return;
+            }
+
+            var html = items.map(function (item) {
+                var title = String(item.title || 'Produto')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+                var reference = String(item.reference || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+                var url = String(item.url || '');
+
+                return '<button type="button" class="autocomplete-item" data-url="' + url + '">' +
+                    '<span class="autocomplete-title">' + title + '</span>' +
+                    (reference ? '<span class="autocomplete-ref">Ref: ' + reference + '</span>' : '') +
+                    '</button>';
+            }).join('');
+
+            menu.innerHTML = html;
+            menu.classList.add('is-visible');
+        }
+
+        function fetchSuggestions(query) {
+            if (abortController) {
+                abortController.abort();
+            }
+            abortController = new AbortController();
+
+            fetch(endpoint + '?q=' + encodeURIComponent(query), {
+                headers: { 'Accept': 'application/json' },
+                signal: abortController.signal
+            })
+                .then(function (response) {
+                    if (!response.ok) return { items: [] };
+                    return response.json();
+                })
+                .then(function (data) {
+                    renderMenu(data.items || []);
+                })
+                .catch(function () {
+                    hideMenu();
+                });
+        }
+
+        input.addEventListener('input', function () {
+            var query = String(input.value || '').trim();
+
+            if (debounceTimer) {
+                window.clearTimeout(debounceTimer);
+            }
+
+            if (query.length < 3) {
+                if (abortController) abortController.abort();
+                hideMenu();
+                return;
+            }
+
+            debounceTimer = window.setTimeout(function () {
+                fetchSuggestions(query);
+            }, 250);
+        });
+
+        menu.addEventListener('click', function (event) {
+            var button = event.target.closest('button[data-url]');
+            if (!button) return;
+
+            var url = button.getAttribute('data-url');
+            if (url) {
+                window.location.href = url;
+            }
+        });
+
+        document.addEventListener('click', function (event) {
+            if (!form.contains(event.target)) {
+                hideMenu();
+            }
+        });
+
+        input.addEventListener('focus', function () {
+            if (menu.children.length > 0) {
+                menu.classList.add('is-visible');
+            }
         });
     })();
 </script>

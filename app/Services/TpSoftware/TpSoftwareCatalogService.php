@@ -413,6 +413,48 @@ class TpSoftwareCatalogService implements CatalogProvider
             throw new \RuntimeException('TP Software: índice de produtos ainda não foi gerado. Corre: php artisan tpsoftware:index');
         }
 
+        if ($this->isLikelyReferenceQuery($query)) {
+            $exactIndexed = collect($indexed)
+                ->map(fn (array $p, int $idx): array => ['product' => $p, 'index' => $idx])
+                ->filter(function (array $row) use ($query): bool {
+                    $p = $row['product'] ?? [];
+                    $id = trim((string) ($p['id'] ?? ''));
+                    $ref = trim((string) ($p['reference'] ?? ''));
+
+                    return $id === $query || ($ref !== '' && strcasecmp($ref, $query) === 0);
+                })
+                ->values()
+                ->all();
+
+            // So valida em "modo exato" quando a query coincide com algum id/ref do indice.
+            // Para query parcial (autocomplete, >=3 chars), cai para o filtro substring abaixo.
+            if (count($exactIndexed) > 0) {
+                $liveMatches = $this->liveSearchExactReference($query);
+                $validatedMatches = $this->validateIndexedExactMatches($exactIndexed);
+
+                if (is_array($liveMatches)) {
+                    $effective = count($liveMatches) > 0 ? $liveMatches : $validatedMatches;
+                    $liveTotal = count($effective);
+                    $liveItems = array_slice($effective, ($page - 1) * $perPage, $perPage);
+
+                    return new LengthAwarePaginator($liveItems, $liveTotal, $perPage, $page, [
+                        'path' => url('/loja/pesquisa'),
+                        'query' => request()->query(),
+                    ]);
+                }
+
+                if (count($validatedMatches) > 0) {
+                    $liveTotal = count($validatedMatches);
+                    $liveItems = array_slice($validatedMatches, ($page - 1) * $perPage, $perPage);
+
+                    return new LengthAwarePaginator($liveItems, $liveTotal, $perPage, $page, [
+                        'path' => url('/loja/pesquisa'),
+                        'query' => request()->query(),
+                    ]);
+                }
+            }
+        }
+
         $q = mb_strtolower($query);
 
         $matching = collect($indexed)
@@ -445,6 +487,108 @@ class TpSoftwareCatalogService implements CatalogProvider
             'path' => url('/loja/pesquisa'),
             'query' => request()->query(),
         ]);
+    }
+
+    private function isLikelyReferenceQuery(string $query): bool
+    {
+        $query = trim($query);
+
+        if (mb_strlen($query, 'UTF-8') < 3 || mb_strlen($query, 'UTF-8') > 80) {
+            return false;
+        }
+
+        // Referencias normalmente nao contem espacos e usam alfanumerico/pontuacao basica.
+        return preg_match('/^[A-Za-z0-9._\\/-]+$/', $query) === 1;
+    }
+
+    /**
+     * @return list<array<string, mixed>>|null
+     */
+    private function liveSearchExactReference(string $query): ?array
+    {
+        try {
+            $result = $this->inventoryList([
+                'limit' => 100,
+                'page' => 1,
+                'search' => $query,
+            ], 0, false);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (! ($result['ok'] ?? false)) {
+            return null;
+        }
+
+        $items = $this->extractList($result['data'] ?? null);
+        $normalized = [];
+        $seen = [];
+
+        foreach ($items as $raw) {
+            if (! is_array($raw) || ! $this->matchesIdOrReference($raw, $query)) {
+                continue;
+            }
+
+            $product = $this->withCoverImage($this->normalizeProduct($raw, includeRaw: false));
+            $id = trim((string) ($product['id'] ?? ''));
+            $ref = mb_strtolower(trim((string) ($product['reference'] ?? '')), 'UTF-8');
+            $key = $id !== '' ? 'id:'.$id : 'ref:'.$ref;
+
+            if ($key === 'ref:' || isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $normalized[] = $product;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param  list<array{product: array<string, mixed>, index: int}>  $exactIndexed
+     * @return list<array<string, mixed>>
+     */
+    private function validateIndexedExactMatches(array $exactIndexed): array
+    {
+        if (count($exactIndexed) === 0) {
+            return [];
+        }
+
+        $validated = [];
+        $seen = [];
+
+        foreach ($exactIndexed as $row) {
+            $product = $row['product'] ?? [];
+            $index = is_int($row['index'] ?? null) ? (int) $row['index'] : null;
+
+            $id = trim((string) ($product['id'] ?? ''));
+            $ref = trim((string) ($product['reference'] ?? ''));
+            $lookupKey = $id !== '' ? $id : $ref;
+
+            if ($lookupKey === '') {
+                continue;
+            }
+
+            $raw = $this->fetchProductRawByIdOrReference($lookupKey, $index);
+            if (! is_array($raw)) {
+                continue;
+            }
+
+            $normalized = $this->withCoverImage($this->normalizeProduct($raw, includeRaw: false));
+            $key = trim((string) ($normalized['id'] ?? ''));
+            if ($key === '') {
+                $key = mb_strtolower(trim((string) ($normalized['reference'] ?? '')), 'UTF-8');
+            }
+            if ($key === '' || isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $validated[] = $normalized;
+        }
+
+        return $validated;
     }
 
     /**
@@ -711,6 +855,10 @@ class TpSoftwareCatalogService implements CatalogProvider
         $modelName = (string) (data_get($raw, (string) config('tpsoftware.catalog.model_field', 'vehicle_model_name')) ?? '');
         $stateName = (string) (data_get($raw, 'state_name') ?? '');
         $conditionName = (string) (data_get($raw, 'condition_name') ?? '');
+        $fuelType = trim((string) (data_get($raw, 'fuel_type_name') ?? ''));
+        $engineCode = trim((string) (data_get($raw, 'motor_code') ?? ''));
+        $vehicleYear = trim((string) (data_get($raw, 'vehicle_year') ?? ''));
+        $tpReference = trim((string) (data_get($raw, 'parts_internal_id') ?? ''));
 
         $images = data_get($raw, 'image_list');
         $imageUrls = is_array($images) ? $this->normalizeImageUrlsFromImageList($images) : [];
@@ -732,6 +880,11 @@ class TpSoftwareCatalogService implements CatalogProvider
             'cover_image' => is_string($coverUrl) && $coverUrl !== '' ? $coverUrl : null,
             'state_name' => $stateName,
             'condition_name' => $conditionName,
+            'fuel_type' => $fuelType !== '' ? $fuelType : null,
+            'engine_code' => $engineCode !== '' ? $engineCode : null,
+            'engine_label' => $this->buildEngineLabel($raw),
+            'vehicle_year' => $vehicleYear !== '' ? $vehicleYear : null,
+            'tp_reference' => $tpReference !== '' ? $tpReference : null,
         ];
 
         if ($includeRaw) {
@@ -739,6 +892,40 @@ class TpSoftwareCatalogService implements CatalogProvider
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param  array<string, mixed>  $raw
+     */
+    private function buildEngineLabel(array $raw): ?string
+    {
+        $parts = [];
+
+        $engineCode = trim((string) (data_get($raw, 'motor_code') ?? ''));
+        if ($engineCode !== '') {
+            $parts[] = $engineCode;
+        }
+
+        $cc = trim((string) (data_get($raw, 'cc') ?? ''));
+        if ($cc !== '' && $cc !== '0') {
+            $parts[] = $cc.'cc';
+        }
+
+        $kw = trim((string) (data_get($raw, 'kw') ?? ''));
+        if ($kw !== '' && $kw !== '0') {
+            $parts[] = $kw.'kW';
+        }
+
+        $cv = trim((string) (data_get($raw, 'cv') ?? ''));
+        if ($cv !== '' && $cv !== '0') {
+            $parts[] = $cv.'cv';
+        }
+
+        if (count($parts) === 0) {
+            return null;
+        }
+
+        return implode(' | ', $parts);
     }
 
     /**

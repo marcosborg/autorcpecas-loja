@@ -39,6 +39,20 @@
         @media (prefers-reduced-motion: reduce) {
             .brand-track { animation: none; }
         }
+
+        .home-product-title {
+            font-size: 1rem;
+            line-height: 1.25;
+        }
+        .home-product-meta {
+            font-size: .86rem;
+            line-height: 1.3;
+            color: #4a4a4a;
+        }
+        .home-product-meta strong {
+            color: #222;
+            font-weight: 700;
+        }
     </style>
 
     @php($bannerUrl = isset($banner?->image_path) && $banner?->image_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($banner->image_path) : null)
@@ -90,6 +104,10 @@
                         @foreach ($products as $p)
                             @php($img = $p['cover_image'] ?? ($p['images'][0] ?? null))
                             @php($productKey = (string) (($p['id'] ?? null) ?: ($p['reference'] ?? '')))
+                            @php($vehicleLine = trim((string) ($p['make_name'] ?? '').' '.(string) ($p['model_name'] ?? '')))
+                            @php($fuelType = trim((string) ($p['fuel_type'] ?? '')))
+                            @php($engineLine = trim((string) ($p['engine_label'] ?? '')))
+                            @php($tpRef = trim((string) ($p['tp_reference'] ?? '')))
                             <div class="col">
                                 <div class="card h-100">
                                     @if (is_string($img) && $img !== '')
@@ -105,13 +123,27 @@
                                         <div class="store-img"></div>
                                     @endif
 
-                                    <div class="card-body">
-                                        <h6 class="card-title mb-1">
+                                    <div class="card-body d-flex flex-column">
+                                        <h6 class="card-title mb-1 home-product-title">
                                             <a class="link-primary text-decoration-none fw-semibold" href="{{ url('/loja/produtos/'.urlencode($productKey)) }}">
                                                 {{ $p['title'] ?? 'Produto' }}
                                             </a>
                                         </h6>
-                                        <div class="text-muted small">{{ $p['reference'] ?? '' }}</div>
+                                        @if ($vehicleLine !== '')
+                                            <div class="home-product-meta mb-1"><strong>{{ $vehicleLine }}</strong></div>
+                                        @endif
+                                        @if ($fuelType !== '')
+                                            <div class="home-product-meta mb-1">{{ $fuelType }}</div>
+                                        @endif
+                                        @if ($engineLine !== '')
+                                            <div class="home-product-meta mb-1"><strong>Motor:</strong> {{ $engineLine }}</div>
+                                        @endif
+                                        @if (!empty($p['reference'] ?? ''))
+                                            <div class="home-product-meta mb-1"><strong>Ref.:</strong> {{ $p['reference'] }}</div>
+                                        @endif
+                                        @if ($tpRef !== '')
+                                            <div class="home-product-meta"><strong>Ref. TP:</strong> {{ $tpRef }}</div>
+                                        @endif
                                     </div>
                                     <div class="card-footer bg-white border-top-0 pt-0">
                                         <div class="d-flex flex-wrap gap-2">

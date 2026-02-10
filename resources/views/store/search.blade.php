@@ -2,6 +2,38 @@
 
 @section('content')
     <div class="container-xl">
+        <style>
+            .search-result-item .thumb {
+                width: 200px;
+                height: 150px;
+                object-fit: cover;
+                border-radius: .25rem;
+                background: #f2f2f2;
+            }
+            .search-result-item .title-link {
+                font-size: 1.2rem;
+                line-height: 1.2;
+                text-decoration: underline;
+                text-underline-offset: 2px;
+            }
+            .search-result-item .meta-line {
+                font-size: .98rem;
+                line-height: 1.35;
+                color: #1f1f1f;
+            }
+            .search-result-item .meta-line strong {
+                font-weight: 700;
+            }
+            @media (max-width: 767.98px) {
+                .search-result-item .thumb {
+                    width: 100%;
+                    height: 190px;
+                }
+                .search-result-item .title-link { font-size: 1.05rem; }
+                .search-result-item .meta-line { font-size: .92rem; }
+            }
+        </style>
+
         <div class="d-flex flex-wrap gap-2 align-items-end justify-content-between mb-3">
             <div>
                 <h3 class="mb-0">Pesquisa</h3>
@@ -15,45 +47,52 @@
         @if ($results->total() === 0)
             <div class="alert alert-secondary">Sem resultados.</div>
         @else
-            <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+            <div class="d-flex flex-column gap-3">
                 @foreach ($results as $p)
                     @php($img = $p['cover_image'] ?? ($p['images'][0] ?? null))
                     @php($productKey = (string) (($p['id'] ?? null) ?: ($p['reference'] ?? '')))
-                    <div class="col">
-                        <div class="card h-100">
-                            @if (is_string($img) && $img !== '')
-                                <img
-                                    class="card-img-top store-img"
-                                    src="{{ $img }}"
-                                    alt=""
-                                    loading="lazy"
-                                    decoding="async"
-                                    onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;600&quot; height=&quot;400&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f2f2f2&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; dominant-baseline=&quot;middle&quot; text-anchor=&quot;middle&quot; fill=&quot;%23666&quot; font-family=&quot;Arial&quot; font-size=&quot;20&quot;>Sem imagem</text></svg>';"
-                                >
-                            @else
-                                <div class="store-img"></div>
-                            @endif
-                            <div class="card-body">
-                                <h6 class="card-title mb-1">
-                                    <a class="link-primary text-decoration-none fw-semibold" href="{{ url('/loja/produtos/'.urlencode($productKey)) }}">{{ $p['title'] ?? 'Produto' }}</a>
-                                </h6>
-                                <div class="text-muted small">{{ $p['reference'] ?? '' }}</div>
-                                @if (!empty($p['category'] ?? ''))
-                                    <div class="text-muted small">{{ $p['category'] }}</div>
-                                @endif
-                            </div>
-                            <div class="card-footer bg-white border-top-0 pt-0">
-                                <div class="d-flex flex-wrap gap-2">
-                                    @if (!is_null($p['price'] ?? null))
-                                        <span class="badge text-bg-primary">{{ $p['price'] }}&nbsp;&euro;</span>
+                    @php($vehicleLine = trim((string) ($p['make_name'] ?? '').' '.(string) ($p['model_name'] ?? '')))
+                    @php($fuelType = trim((string) ($p['fuel_type'] ?? '')))
+                    @php($engineLine = trim((string) ($p['engine_label'] ?? '')))
+                    @php($tpRef = trim((string) ($p['tp_reference'] ?? '')))
+                    <article class="card search-result-item">
+                        <div class="card-body">
+                            <div class="d-flex flex-column flex-md-row gap-3">
+                                <div class="flex-shrink-0">
+                                    @if (is_string($img) && $img !== '')
+                                        <img
+                                            class="thumb"
+                                            src="{{ $img }}"
+                                            alt=""
+                                            loading="lazy"
+                                            decoding="async"
+                                            onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;600&quot; height=&quot;400&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f2f2f2&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; dominant-baseline=&quot;middle&quot; text-anchor=&quot;middle&quot; fill=&quot;%23666&quot; font-family=&quot;Arial&quot; font-size=&quot;20&quot;>Sem imagem</text></svg>';"
+                                        >
+                                    @else
+                                        <div class="thumb"></div>
                                     @endif
-                                    @if (!is_null($p['stock'] ?? null))
-                                        <span class="badge text-bg-secondary">Stock: {{ $p['stock'] }}</span>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <a class="title-link link-primary fw-semibold" href="{{ url('/loja/produtos/'.urlencode($productKey)) }}">{{ $p['title'] ?? 'Produto' }}</a>
+                                    @if ($vehicleLine !== '')
+                                        <div class="meta-line mt-1"><strong>{{ $vehicleLine }}</strong></div>
+                                    @endif
+                                    @if ($fuelType !== '')
+                                        <div class="meta-line mt-1"><strong>{{ $fuelType }}</strong></div>
+                                    @endif
+                                    @if ($engineLine !== '')
+                                        <div class="meta-line mt-1"><strong>MOTOR:</strong> {{ $engineLine }}</div>
+                                    @endif
+                                    @if (!empty($p['reference'] ?? ''))
+                                        <div class="meta-line mt-1"><strong>Ref.:</strong> {{ $p['reference'] }}</div>
+                                    @endif
+                                    @if ($tpRef !== '')
+                                        <div class="meta-line mt-1"><strong>Ref. TP:</strong> {{ $tpRef }}</div>
                                     @endif
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </article>
                 @endforeach
             </div>
 

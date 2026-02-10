@@ -28,4 +28,36 @@ class StoreSearchController extends Controller
             'headerCategories' => $headerCategories ?? [],
         ]);
     }
+
+    public function suggestions(Request $request, CatalogProvider $catalog)
+    {
+        $q = trim((string) $request->query('q', ''));
+
+        if (mb_strlen($q) < 3) {
+            return response()->json(['items' => []]);
+        }
+
+        try {
+            $results = $catalog->search($q, 1, 8);
+        } catch (\RuntimeException $e) {
+            return response()->json(['items' => []], 503);
+        }
+
+        $items = collect($results->items())
+            ->map(function (array $product) {
+                $reference = (string) ($product['reference'] ?? '');
+                $productKey = (string) (($product['id'] ?? null) ?: $reference);
+
+                return [
+                    'title' => (string) ($product['title'] ?? 'Produto'),
+                    'reference' => $reference,
+                    'url' => url('/loja/produtos/' . urlencode($productKey)),
+                ];
+            })
+            ->filter(fn (array $item) => $item['url'] !== '')
+            ->values()
+            ->all();
+
+        return response()->json(['items' => $items]);
+    }
 }

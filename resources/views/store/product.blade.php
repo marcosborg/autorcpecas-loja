@@ -11,9 +11,35 @@
         @php(array_unshift($carouselImages, $cover))
     @endif
 
+    <style>
+        .product-breadcrumb-wrap {
+            background: #faf7f7;
+            border: 1px solid #eadede;
+            border-radius: .75rem;
+            padding: .8rem 1rem;
+        }
+        .product-breadcrumb {
+            margin-bottom: 0;
+            font-size: .98rem;
+            line-height: 1.35;
+        }
+        .product-breadcrumb .breadcrumb-item + .breadcrumb-item::before {
+            color: #9b6a6a;
+            font-weight: 600;
+        }
+        .product-breadcrumb .breadcrumb-item a {
+            color: #700000;
+            font-weight: 500;
+        }
+        .product-breadcrumb .breadcrumb-item.active {
+            color: #7a7a7a;
+            font-weight: 600;
+        }
+    </style>
+
     <div class="container-xl">
-        <nav aria-label="breadcrumb" class="mb-3">
-            <ol class="breadcrumb mb-0">
+        <nav aria-label="breadcrumb" class="mb-3 product-breadcrumb-wrap">
+            <ol class="breadcrumb product-breadcrumb">
                 <li class="breadcrumb-item"><a class="link-primary text-decoration-none" href="{{ url('/loja') }}">Loja</a></li>
                 <li class="breadcrumb-item"><a class="link-primary text-decoration-none" href="{{ url('/loja/categorias') }}">Marcas</a></li>
                 @if ($make !== '')
