@@ -16,4 +16,5 @@ Route::prefix('loja')->group(function () {
     Route::get('produtos/{idOrReference}', [\App\Http\Controllers\Store\StoreProductController::class, 'show']);
     Route::get('pesquisa', [\App\Http\Controllers\Store\StoreSearchController::class, 'index']);
     Route::get('pesquisa/sugestoes', [\App\Http\Controllers\Store\StoreSearchController::class, 'suggestions']);
+    Route::get('checkout/simulador', [\App\Http\Controllers\Store\StoreCheckoutSimulatorController::class, 'index']);
 });
