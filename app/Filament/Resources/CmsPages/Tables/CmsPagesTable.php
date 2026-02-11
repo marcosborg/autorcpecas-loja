@@ -24,6 +24,14 @@ class CmsPagesTable
                     ->label('Slug')
                     ->searchable()
                     ->toggleable(),
+                TextColumn::make('public_url')
+                    ->label('Link publico')
+                    ->state(fn ($record): string => url('/pagina/'.$record->slug))
+                    ->url(fn ($record): string => url('/pagina/'.$record->slug), shouldOpenInNewTab: true)
+                    ->copyable()
+                    ->copyMessage('Link copiado para a area de transferencia')
+                    ->copyMessageDuration(1500)
+                    ->toggleable(),
                 IconColumn::make('is_published')
                     ->label('Publicada')
                     ->boolean()
@@ -46,4 +54,3 @@ class CmsPagesTable
             ]);
     }
 }
-
