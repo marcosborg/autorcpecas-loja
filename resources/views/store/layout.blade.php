@@ -274,18 +274,27 @@
 
             <div class="collapse navbar-collapse" id="topNav">
                 <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
-                    <li class="nav-item">
-                        <a class="nav-link @if(request()->is('/')) active @endif" href="{{ url('/') }}">Início</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link @if(request()->is('sobre-nos')) active @endif" href="{{ url('/sobre-nos') }}">Sobre nós</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link @if(request()->is('marcas')) active @endif" href="{{ url('/marcas') }}">Todas as marcas</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="btn btn-contact" href="{{ url('/contactos') }}">Contactos</a>
-                    </li>
+                    @foreach (($headerMenuItems ?? []) as $menuItem)
+                        <li class="nav-item">
+                            @if (!empty($menuItem['is_button']))
+                                <a
+                                    class="btn btn-contact"
+                                    href="{{ $menuItem['href'] ?? '#' }}"
+                                    @if(!empty($menuItem['open_in_new_tab'])) target="_blank" rel="noopener" @endif
+                                >
+                                    {{ $menuItem['label'] ?? '' }}
+                                </a>
+                            @else
+                                <a
+                                    class="nav-link @if(!empty($menuItem['is_current'])) active @endif"
+                                    href="{{ $menuItem['href'] ?? '#' }}"
+                                    @if(!empty($menuItem['open_in_new_tab'])) target="_blank" rel="noopener" @endif
+                                >
+                                    {{ $menuItem['label'] ?? '' }}
+                                </a>
+                            @endif
+                        </li>
+                    @endforeach
                 </ul>
             </div>
         </div>
@@ -305,10 +314,10 @@
 
                     <form class="search-form d-flex flex-grow-1 gap-2" action="{{ url('/loja/pesquisa') }}" method="get" role="search" data-autocomplete-url="{{ url('/loja/pesquisa/sugestoes') }}">
                         <div class="autocomplete-wrap flex-grow-1">
-                            <input class="form-control" type="search" name="q" value="{{ request('q') }}" placeholder="Procurar por referência" aria-label="Procurar por referência" autocomplete="off">
-                            <div class="autocomplete-menu" data-ref-suggestions role="listbox" aria-label="Sugestões de referência"></div>
+                            <input class="form-control" type="search" name="q" value="{{ request('q') }}" placeholder="Procurar por referÃƒÂªncia" aria-label="Procurar por referÃƒÂªncia" autocomplete="off">
+                            <div class="autocomplete-menu" data-ref-suggestions role="listbox" aria-label="SugestÃƒÂµes de referÃƒÂªncia"></div>
                         </div>
-                        <button class="btn btn-light px-3" type="submit" aria-label="Pesquisar referência">
+                        <button class="btn btn-light px-3" type="submit" aria-label="Pesquisar referÃƒÂªncia">
                             Pesquisar
                         </button>
                     </form>
