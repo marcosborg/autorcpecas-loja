@@ -188,19 +188,50 @@
             </div>
 
             <div class="ms-auto d-none d-lg-flex align-items-center gap-4">
-                <div class="account d-flex align-items-center gap-2">
-                    <div style="font-size: 28px; line-height: 1;">&#128100;</div>
+                <a class="account d-flex align-items-center gap-2 text-decoration-none" href="{{ url('/loja/carrinho') }}">
+                    <div style="font-size: 28px; line-height: 1;">&#128722;</div>
                     <div>
-                        <small>Criar Conta</small>
-                        <div class="fw-semibold">Conta</div>
+                        <small>Carrinho</small>
+                        <div class="fw-semibold">{{ (int) ($storeCartCount ?? 0) }} item(ns)</div>
                     </div>
-                </div>
+                </a>
+                @auth
+                    <a class="account d-flex align-items-center gap-2 text-decoration-none" href="{{ url('/loja/conta') }}">
+                        <div style="font-size: 28px; line-height: 1;">&#128100;</div>
+                        <div>
+                            <small>Minha conta</small>
+                            <div class="fw-semibold">{{ auth()->user()->name }}</div>
+                        </div>
+                    </a>
+                @else
+                    <a class="account d-flex align-items-center gap-2 text-decoration-none" href="{{ url('/loja/conta/login') }}">
+                        <div style="font-size: 28px; line-height: 1;">&#128100;</div>
+                        <div>
+                            <small>Criar Conta</small>
+                            <div class="fw-semibold">Conta</div>
+                        </div>
+                    </a>
+                @endauth
             </div>
         </div>
     </div>
 </header>
 
+<main>
+    <div class="container-xl mt-3">
+        @if (session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if ($errors->any())
+            <div class="alert alert-danger">
+                @foreach ($errors->all() as $error)
+                    <div>{{ $error }}</div>
+                @endforeach
+            </div>
+        @endif
+    </div>
 @yield('content')
+</main>
 
 <footer class="border-top py-4 mt-4">
     <div class="container text-muted small"></div>

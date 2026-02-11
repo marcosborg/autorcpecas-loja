@@ -178,9 +178,44 @@ class CheckoutOptionsService
                 'provider' => $method->provider,
                 'fee_ex_vat' => round($fee, 2),
                 'fee_type' => $method->fee_type,
+                'meta' => $this->publicPaymentMeta(is_array($method->meta) ? $method->meta : []),
             ];
         }
 
         return $out;
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     * @return array<string, mixed>
+     */
+    private function publicPaymentMeta(array $meta): array
+    {
+        $gateway = (string) ($meta['gateway'] ?? '');
+        if ($gateway === 'sibs') {
+            $clientId = trim((string) ($meta['client_id'] ?? ''));
+            $terminalId = trim((string) ($meta['terminal_id'] ?? ''));
+            $bearer = trim((string) ($meta['bearer_token'] ?? ''));
+
+            return [
+                'gateway' => 'sibs',
+                'method' => (string) ($meta['method'] ?? ''),
+                'server' => (string) ($meta['server'] ?? ''),
+                'integration_ready' => $clientId !== '' && $terminalId !== '' && $bearer !== '',
+                'payment_entity' => (string) ($meta['payment_entity'] ?? ''),
+                'payment_type' => (string) ($meta['payment_type'] ?? ''),
+            ];
+        }
+
+        if ($gateway === 'manual_bank_transfer') {
+            return [
+                'gateway' => 'manual_bank_transfer',
+                'owner' => (string) ($meta['owner'] ?? ''),
+                'details' => (string) ($meta['details'] ?? ''),
+                'address' => (string) ($meta['address'] ?? ''),
+            ];
+        }
+
+        return [];
     }
 }

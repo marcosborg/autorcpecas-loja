@@ -141,6 +141,7 @@
                     <div class="card-body">
                         @php($priceExVat = $product['price_ex_vat'] ?? ($product['price'] ?? null))
                         @php($isConsultPrice = is_numeric($priceExVat) && (float) $priceExVat <= 0)
+                        @php($productKey = (string) (($product['id'] ?? null) ?: ($product['reference'] ?? '')))
                         <div class="d-flex flex-wrap align-items-center gap-2">
                             @if (is_numeric($priceExVat))
                                 <div class="store-price-box">
@@ -169,10 +170,18 @@
                         </div>
 
                         <div class="mt-3 d-flex gap-2">
-                            <button class="btn btn-primary" type="button" disabled>Adicionar ao carrinho</button>
-                            <button class="btn btn-outline-primary" type="button" disabled>Comprar agora</button>
+                            @auth
+                                <form method="post" action="{{ url('/loja/carrinho/items') }}" class="d-inline">
+                                    @csrf
+                                    <input type="hidden" name="product_key" value="{{ $productKey }}">
+                                    <input type="hidden" name="quantity" value="1">
+                                    <button class="btn btn-primary" type="submit">Adicionar ao carrinho</button>
+                                </form>
+                                <a class="btn btn-outline-primary" href="{{ url('/loja/checkout') }}">Ir para checkout</a>
+                            @else
+                                <a class="btn btn-primary" href="{{ url('/loja/conta/login') }}">Entrar para comprar</a>
+                            @endauth
                         </div>
-                        <div class="text-muted small mt-2">Carrinho e checkout serao adicionados a seguir.</div>
                     </div>
                 </div>
 
