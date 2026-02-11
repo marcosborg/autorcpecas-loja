@@ -1,4 +1,4 @@
-@extends('store.layout', ['title' => 'Loja'])
+﻿@extends('store.layout', ['title' => 'Loja'])
 
 @section('content')
     <style>
@@ -65,7 +65,7 @@
 
                 @if (!empty($facets['piece_categories'] ?? []))
                     <div class="card mt-3">
-                        <div class="card-header fw-semibold">Categoria da peça</div>
+                        <div class="card-header fw-semibold">Categoria da peÃ§a</div>
                         <div class="card-body">
                             <select id="pieceCategorySelect" class="form-select store-filter-select">
                                 <option value="{{ $facets['piece_categories_all_url'] ?? url('/loja/categorias/'.$selectedCategorySlug) }}" @if(empty($selectedPiece ?? '')) selected @endif>Todos</option>
@@ -79,59 +79,6 @@
                     </div>
                 @endif
 
-                @if (!empty($selectedCategorySlug ?? '') && config('storefront.catalog_provider') === 'tpsoftware' && empty($facets['states'] ?? []) && empty($facets['conditions'] ?? []))
-                    <div class="alert alert-light border mt-3 mb-0 small">
-                        Dica: para ativar filtros de <strong>Estado</strong> e <strong>Condição</strong>, reconstrói o índice: <code>php artisan tpsoftware:index --force</code>
-                    </div>
-                @endif
-
-                @if (!empty($facets['states'] ?? []))
-                    <div class="card mt-3">
-                        <div class="card-header fw-semibold">Estado</div>
-                        <div class="card-body">
-                            <select id="stateSelect" class="form-select store-filter-select">
-                                <option value="{{ $facets['states_all_url'] ?? url('/loja/categorias/'.$selectedCategorySlug) }}" @if(empty($selectedState ?? '')) selected @endif>Todos</option>
-                                @foreach (($facets['states'] ?? []) as $opt)
-                                    <option value="{{ $opt['url'] ?? '#' }}" @if(($selectedState ?? '') === ($opt['slug'] ?? '')) selected @endif>
-                                        {{ $opt['name'] }} ({{ $opt['count'] }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                @endif
-
-                @if (!empty($facets['conditions'] ?? []))
-                    <div class="card mt-3">
-                        <div class="card-header fw-semibold">Condição</div>
-                        <div class="card-body">
-                            <select id="conditionSelect" class="form-select store-filter-select">
-                                <option value="{{ $facets['conditions_all_url'] ?? url('/loja/categorias/'.$selectedCategorySlug) }}" @if(empty($selectedCondition ?? '')) selected @endif>Todos</option>
-                                @foreach (($facets['conditions'] ?? []) as $opt)
-                                    <option value="{{ $opt['url'] ?? '#' }}" @if(($selectedCondition ?? '') === ($opt['slug'] ?? '')) selected @endif>
-                                        {{ $opt['name'] }} ({{ $opt['count'] }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                @endif
-
-                @if (!empty($facets['prices'] ?? []))
-                    <div class="card mt-3">
-                        <div class="card-header fw-semibold">Preço</div>
-                        <div class="card-body">
-                            <select id="priceSelect" class="form-select store-filter-select">
-                                <option value="{{ $facets['prices_all_url'] ?? url('/loja/categorias/'.$selectedCategorySlug) }}" @if(empty($selectedPrice ?? '')) selected @endif>Todos</option>
-                                @foreach (($facets['prices'] ?? []) as $opt)
-                                    <option value="{{ $opt['url'] ?? '#' }}" @if(($selectedPrice ?? '') === ($opt['key'] ?? '')) selected @endif>
-                                        {{ $opt['label'] }} ({{ $opt['count'] }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                @endif
             </aside>
 
             <main class="col-12 col-lg-8">
@@ -172,7 +119,12 @@
                                 @php($engineLine = trim((string) ($p['engine_label'] ?? '')))
                                 @php($tpRef = trim((string) ($p['tp_reference'] ?? '')))
                                 <div class="col">
-                                    <div class="card h-100">
+                                    <div class="card h-100 product-card">
+                                        <a
+                                            href="{{ url('/loja/produtos/'.urlencode($productKey)) }}"
+                                            class="product-card-link"
+                                            aria-label="Ver produto {{ $p['title'] ?? 'Produto' }}"
+                                        ></a>
                                         @if (is_string($img) && $img !== '')
                                             <div class="tp-image-frame tp-image-frame-block">
                                                 <span class="tp-image-spinner" aria-hidden="true"></span>
@@ -261,7 +213,7 @@
                     @endif
                 @else
                     <div class="alert alert-info">
-                        Seleciona uma {{ config('storefront.catalog_provider') === 'tpsoftware' ? 'marca' : 'categoria' }} à esquerda para veres produtos.
+                        Seleciona uma {{ config('storefront.catalog_provider') === 'tpsoftware' ? 'marca' : 'categoria' }} Ã  esquerda para veres produtos.
                     </div>
                 @endif
             </main>

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title ?? 'Loja' }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet">
     <style>
         :root {
@@ -130,6 +131,14 @@
         .store-searchbar .autocomplete-ref { display: block; font-size: .82rem; color: #6c757d; }
         .store-searchbar .account { color: #fff; font-size: .9rem; }
         .store-searchbar .account small { display: block; opacity: .85; }
+        .icon-on-dark { color: #fff !important; }
+        .icon-on-light { color: #700000 !important; }
+        .store-searchbar .account-icon {
+            font-size: 1.6rem;
+            line-height: 1;
+            width: 1.7rem;
+            text-align: center;
+        }
         .store-searchbar a.account,
         .store-searchbar a.account:visited,
         .store-searchbar a.account:hover,
@@ -174,6 +183,35 @@
         .product-thumb-btn { border: 1px solid #dee2e6; border-radius: .5rem; overflow: hidden; padding: 0; background: #fff; }
         .product-thumb-btn img { width: 72px; height: 72px; object-fit: cover; display: block; background: #f2f2f2; }
         .product-thumb-btn.is-active { border-color: #700000; box-shadow: 0 0 0 .2rem rgba(112, 0, 0, .15); }
+        .product-card {
+            position: relative;
+            cursor: pointer;
+        }
+        .product-card-link {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            border-radius: inherit;
+        }
+        .product-card a:not(.product-card-link),
+        .product-card button,
+        .product-card .btn {
+            position: relative;
+            z-index: 2;
+        }
+        .account-nav-group .list-group-item.active,
+        .account-nav-group .list-group-item.active:hover,
+        .account-nav-group .list-group-item.active:focus {
+            background-color: #700000;
+            border-color: #700000;
+            color: #fff !important;
+        }
+        .account-nav-group .list-group-item {
+            color: #700000;
+        }
+        .account-nav-group .list-group-item:hover {
+            color: #5a0000;
+        }
 
         .store-footer {
             margin-top: 2rem;
@@ -223,10 +261,22 @@
             gap: .6rem;
             margin-bottom: .7rem;
         }
+        .store-footer-lre-link {
+            display: inline-flex;
+            margin-top: .35rem;
+        }
+        .store-footer-lre-img {
+            height: 48px;
+            width: auto;
+            display: block;
+        }
         .store-footer-contact-icon {
             width: 1.15rem;
             text-align: center;
             opacity: .9;
+            font-size: 1rem;
+            line-height: 1.2;
+            margin-top: .1rem;
         }
         .store-footer-bottom {
             background: #700000;
@@ -257,6 +307,55 @@
         @media (max-width: 991.98px) {
             .store-footer-top { padding: 2rem 0 1.6rem; }
             .store-footer-payments { justify-content: start; margin-top: .8rem; }
+        }
+
+        .cookie-banner {
+            position: fixed;
+            left: 1rem;
+            right: 1rem;
+            bottom: 1rem;
+            z-index: 2000;
+            display: none;
+        }
+        .cookie-banner.is-visible { display: block; }
+        .cookie-banner-card {
+            max-width: 980px;
+            margin: 0 auto;
+            background: #fff;
+            border: 1px solid #e2d4d4;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, .2);
+            border-radius: .8rem;
+            overflow: hidden;
+        }
+        .cookie-banner-head {
+            background: #700000;
+            color: #fff;
+            padding: .6rem .9rem;
+            font-weight: 700;
+        }
+        .cookie-banner-body {
+            padding: .85rem .95rem;
+            color: #2b2b2b;
+            font-size: .93rem;
+            line-height: 1.4;
+        }
+        .cookie-banner-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            margin-top: .75rem;
+        }
+        .cookie-banner-actions .btn {
+            min-width: 140px;
+        }
+        .cms-footer-modal-body img {
+            max-width: 100%;
+            height: auto;
+        }
+        .cms-footer-modal-body iframe {
+            width: 100%;
+            min-height: 320px;
+            border: 0;
         }
     </style>
 </head>
@@ -326,7 +425,7 @@
 
             <div class="ms-auto d-none d-lg-flex align-items-center gap-4">
                 <a class="account d-flex align-items-center gap-2 text-decoration-none" href="{{ url('/loja/carrinho') }}">
-                    <div style="font-size: 28px; line-height: 1;">&#128722;</div>
+                    <i class="bi bi-cart3 account-icon icon-on-dark" aria-hidden="true"></i>
                     <div>
                         <small>Carrinho</small>
                         <div class="fw-semibold">{{ (int) ($storeCartCount ?? 0) }} item(ns)</div>
@@ -334,7 +433,7 @@
                 </a>
                 @auth
                     <a class="account d-flex align-items-center gap-2 text-decoration-none" href="{{ url('/loja/conta') }}">
-                        <div style="font-size: 28px; line-height: 1;">&#128100;</div>
+                        <i class="bi bi-person-fill account-icon icon-on-dark" aria-hidden="true"></i>
                         <div>
                             <small>Minha conta</small>
                             <div class="fw-semibold">{{ auth()->user()->name }}</div>
@@ -342,7 +441,7 @@
                     </a>
                 @else
                     <a class="account d-flex align-items-center gap-2 text-decoration-none" href="{{ url('/loja/conta/login') }}">
-                        <div style="font-size: 28px; line-height: 1;">&#128100;</div>
+                        <i class="bi bi-person-fill account-icon icon-on-dark" aria-hidden="true"></i>
                         <div>
                             <small>Criar Conta</small>
                             <div class="fw-semibold">Conta</div>
@@ -390,14 +489,6 @@
                     </ul>
                 </div>
                 <div class="col-12 col-md-4 col-lg-2">
-                    <div class="store-footer-subtitle">Produtos</div>
-                    <ul class="store-footer-links">
-                        <li><a href="{{ url('/loja') }}">Destaques</a></li>
-                        <li><a href="{{ url('/loja/categorias') }}">Marcas</a></li>
-                        <li><a href="{{ url('/loja/pesquisa') }}">Pesquisar referencia</a></li>
-                    </ul>
-                </div>
-                <div class="col-12 col-md-4 col-lg-2">
                     <div class="store-footer-subtitle">Menu</div>
                     <ul class="store-footer-links">
                         @foreach (($headerMenuItems ?? []) as $menuItem)
@@ -410,22 +501,50 @@
                                 </a>
                             </li>
                         @endforeach
+                        @foreach (($footerCmsPages ?? []) as $footerPage)
+                            <li>
+                                @if (!empty($footerPage['popup']))
+                                    <a href="#" data-bs-toggle="modal" data-bs-target="#cmsFooterModal{{ $footerPage['id'] }}">
+                                        {{ $footerPage['label'] ?? '' }}
+                                    </a>
+                                @else
+                                    <a href="{{ $footerPage['href'] ?? '#' }}">
+                                        {{ $footerPage['label'] ?? '' }}
+                                    </a>
+                                @endif
+                            </li>
+                        @endforeach
                     </ul>
                 </div>
                 <div class="col-12 col-lg-3">
                     <div class="store-footer-subtitle">Guardar Informacao</div>
                     <div class="store-footer-contact-item">
-                        <div class="store-footer-contact-icon">&#128205;</div>
+                        <div class="store-footer-contact-icon icon-on-dark"><i class="bi bi-geo-alt-fill" aria-hidden="true"></i></div>
                         <div>Auto RC Pecas<br>Rua Alto do Capitao, 327<br>3880-728 Ovar, Portugal</div>
                     </div>
                     <div class="store-footer-contact-item">
-                        <div class="store-footer-contact-icon">&#128222;</div>
+                        <div class="store-footer-contact-icon icon-on-dark"><i class="bi bi-telephone-fill" aria-hidden="true"></i></div>
                         <div>+351 914 401 299</div>
                     </div>
                     <div class="store-footer-contact-item">
-                        <div class="store-footer-contact-icon">&#9993;</div>
+                        <div class="store-footer-contact-icon icon-on-dark"><i class="bi bi-envelope-fill" aria-hidden="true"></i></div>
                         <div>marketing@autorcpecas.pt</div>
                     </div>
+                    <a
+                        class="store-footer-lre-link"
+                        href="https://www.livroreclamacoes.pt/Inicio/"
+                        target="_blank"
+                        rel="noopener"
+                        aria-label="Livro de Reclamações Eletrónico"
+                    >
+                        <img
+                            class="store-footer-lre-img"
+                            src="{{ asset('assets/img/LRE_Theme.Logo_White.png') }}"
+                            alt="Livro de Reclamações Eletrónico"
+                            loading="lazy"
+                            decoding="async"
+                        >
+                    </a>
                 </div>
             </div>
         </div>
@@ -449,6 +568,45 @@
         </div>
     </div>
 </footer>
+
+<div class="cookie-banner" data-cookie-banner>
+    <div class="cookie-banner-card">
+        <div class="cookie-banner-head">Cookies</div>
+        <div class="cookie-banner-body">
+            Utilizamos cookies para melhorar a navegação, analisar tráfego e otimizar a experiência da loja.
+            Ao continuar, podes aceitar ou recusar cookies não essenciais.
+            <div class="cookie-banner-actions">
+                <button type="button" class="btn btn-primary btn-sm" data-cookie-accept>Aceitar cookies</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" data-cookie-reject>Recusar não essenciais</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@foreach (($footerCmsPages ?? []) as $footerPage)
+    @if (!empty($footerPage['popup']))
+        <div class="modal fade" id="cmsFooterModal{{ $footerPage['id'] }}" tabindex="-1" aria-labelledby="cmsFooterModalLabel{{ $footerPage['id'] }}" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="cmsFooterModalLabel{{ $footerPage['id'] }}">{{ $footerPage['title'] ?? $footerPage['label'] ?? 'Informacao' }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <div class="modal-body cms-footer-modal-body">
+                        @if (!empty($footerPage['featured_image_path']))
+                            <img
+                                src="{{ asset('storage/' . ltrim((string) $footerPage['featured_image_path'], '/')) }}"
+                                alt="{{ $footerPage['title'] ?? $footerPage['label'] ?? 'Imagem' }}"
+                                class="img-fluid rounded mb-3"
+                            >
+                        @endif
+                        {!! $footerPage['content'] ?? '' !!}
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+@endforeach
 
 <div class="modal fade" id="consultPriceModal" tabindex="-1" aria-labelledby="consultPriceModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -765,6 +923,67 @@
             updateSummary(openTitle, openReference);
             var modal = new window.bootstrap.Modal(modalEl);
             modal.show();
+        }
+    })();
+
+    (function () {
+        var banner = document.querySelector('[data-cookie-banner]');
+        if (!banner) return;
+
+        var key = 'autorc_cookie_consent_v1';
+        var maxAgeDays = 180;
+        var value = null;
+
+        try {
+            value = window.localStorage.getItem(key);
+        } catch (e) {
+            value = null;
+        }
+
+        var isValid = false;
+        if (value) {
+            try {
+                var parsed = JSON.parse(value);
+                var at = parsed && parsed.at ? Date.parse(parsed.at) : NaN;
+                if (!isNaN(at)) {
+                    var ageMs = Date.now() - at;
+                    isValid = ageMs >= 0 && ageMs <= (maxAgeDays * 24 * 60 * 60 * 1000);
+                }
+            } catch (e) {
+                isValid = false;
+            }
+        }
+
+        if (!isValid) {
+            banner.classList.add('is-visible');
+        }
+
+        function storeConsent(consent) {
+            try {
+                window.localStorage.setItem(key, JSON.stringify({
+                    consent: consent,
+                    at: new Date().toISOString(),
+                }));
+            } catch (e) {
+                // noop
+            }
+
+            banner.classList.remove('is-visible');
+        }
+
+        var acceptBtn = banner.querySelector('[data-cookie-accept]');
+        var rejectBtn = banner.querySelector('[data-cookie-reject]');
+
+        if (acceptBtn) {
+            acceptBtn.addEventListener('click', function () {
+                storeConsent('accepted');
+            });
+        }
+
+        if (rejectBtn) {
+            rejectBtn.addEventListener('click', function () {
+                storeConsent('rejected');
+            });
         }
     })();
 </script>

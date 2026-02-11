@@ -23,6 +23,11 @@ test('submits consult request and sends email with product and customer data', f
             return 1;
         }
 
+        public function products(int $page = 1, int $perPage = 24): LengthAwarePaginator
+        {
+            return new LengthAwarePaginator([], 0, $perPage, $page);
+        }
+
         public function productsByCategory(string $categorySlug, int $page = 1, int $perPage = 24): array
         {
             return ['categoryName' => 'Test', 'paginator' => new LengthAwarePaginator([], 0, $perPage, $page)];
@@ -92,6 +97,7 @@ test('rejects consult request when honeypot is filled', function () {
     $this->app->instance(CatalogProvider::class, new class implements CatalogProvider {
         public function categories(): array { return []; }
         public function totalProducts(): int { return 1; }
+        public function products(int $page = 1, int $perPage = 24): LengthAwarePaginator { return new LengthAwarePaginator([], 0, $perPage, $page); }
         public function productsByCategory(string $categorySlug, int $page = 1, int $perPage = 24): array { return ['categoryName' => 'Test', 'paginator' => new LengthAwarePaginator([], 0, $perPage, $page)]; }
         public function product(string $idOrReference): ?array { return ['id' => 1, 'title' => 'Produto X', 'reference' => 'REF-X']; }
         public function search(string $query, int $page = 1, int $perPage = 24): LengthAwarePaginator { return new LengthAwarePaginator([], 0, $perPage, $page); }
@@ -124,6 +130,7 @@ test('rejects consult request when submitted too quickly', function () {
     $this->app->instance(CatalogProvider::class, new class implements CatalogProvider {
         public function categories(): array { return []; }
         public function totalProducts(): int { return 1; }
+        public function products(int $page = 1, int $perPage = 24): LengthAwarePaginator { return new LengthAwarePaginator([], 0, $perPage, $page); }
         public function productsByCategory(string $categorySlug, int $page = 1, int $perPage = 24): array { return ['categoryName' => 'Test', 'paginator' => new LengthAwarePaginator([], 0, $perPage, $page)]; }
         public function product(string $idOrReference): ?array { return ['id' => 1, 'title' => 'Produto X', 'reference' => 'REF-X']; }
         public function search(string $query, int $page = 1, int $perPage = 24): LengthAwarePaginator { return new LengthAwarePaginator([], 0, $perPage, $page); }

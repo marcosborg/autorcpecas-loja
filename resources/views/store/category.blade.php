@@ -54,7 +54,12 @@
                     @php($engineLine = trim((string) ($p['engine_label'] ?? '')))
                     @php($tpRef = trim((string) ($p['tp_reference'] ?? '')))
                     <div class="col">
-                        <div class="card h-100">
+                        <div class="card h-100 product-card">
+                            <a
+                                href="{{ url('/loja/produtos/'.urlencode($productKey)) }}"
+                                class="product-card-link"
+                                aria-label="Ver produto {{ $p['title'] ?? 'Produto' }}"
+                            ></a>
                             @if (is_string($img) && $img !== '')
                                 <div class="tp-image-frame tp-image-frame-block">
                                     <span class="tp-image-spinner" aria-hidden="true"></span>

@@ -52,7 +52,7 @@ class PaymentMethodForm
                     ->searchable()
                     ->preload(),
                 Section::make('Configuracao SIBS')
-                    ->description('Preenche para os metodos com code sibs_card, sibs_mbway e sibs_multibanco.')
+                    ->description('Preenche para os metodos com code sibs_card, sibs_mbway e sibs_multibanco. Callback: '.url('/webhooks/sibs/payment'))
                     ->visible(fn ($get): bool => str_starts_with((string) $get('code'), 'sibs_'))
                     ->columns(2)
                     ->schema([

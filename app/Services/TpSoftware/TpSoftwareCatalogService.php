@@ -240,6 +240,38 @@ class TpSoftwareCatalogService implements CatalogProvider
         return $this->extractTotalCount($result['data'] ?? null);
     }
 
+    public function products(int $page = 1, int $perPage = 24): LengthAwarePaginator
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+
+        $indexed = (bool) config('tpsoftware.catalog.index_enabled', true)
+            ? $this->indexedProducts()
+            : null;
+
+        if ($indexed === null) {
+            throw new \RuntimeException('TP Software: indice de produtos ainda nao foi gerado. Corre: php artisan tpsoftware:index');
+        }
+
+        $total = count($indexed);
+        $items = collect($indexed)
+            ->slice(($page - 1) * $perPage, $perPage)
+            ->values()
+            ->map(fn (array $p): array => $this->withCoverImage($p))
+            ->all();
+
+        return new LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            [
+                'path' => url('/loja'),
+                'query' => request()->query(),
+            ],
+        );
+    }
+
     /**
      * @return array{categoryName: string, paginator: LengthAwarePaginator, meta?: array<string, mixed>}
      */

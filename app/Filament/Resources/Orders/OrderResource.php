@@ -7,6 +7,7 @@ use App\Filament\Resources\Orders\Pages\ListOrders;
 use App\Filament\Resources\Orders\Schemas\OrderForm;
 use App\Filament\Resources\Orders\Tables\OrdersTable;
 use App\Models\Order;
+use App\Support\OrderStatuses;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -34,15 +35,7 @@ class OrderResource extends Resource
      */
     public static function statusOptions(): array
     {
-        return [
-            'awaiting_payment' => 'A aguardar pagamento',
-            'paid' => 'Paga',
-            'processing' => 'Em processamento',
-            'shipped' => 'Enviada',
-            'completed' => 'Concluida',
-            'cancelled' => 'Cancelada',
-            'refunded' => 'Reembolsada',
-        ];
+        return OrderStatuses::options();
     }
 
     public static function form(Schema $schema): Schema

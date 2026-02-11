@@ -35,6 +35,44 @@
             color: #7a7a7a;
             font-weight: 600;
         }
+        .product-zoom-wrap {
+            position: relative;
+        }
+        .product-zoom-trigger {
+            position: absolute;
+            right: .7rem;
+            bottom: .7rem;
+            z-index: 4;
+            border: 0;
+            border-radius: 999px;
+            width: 38px;
+            height: 38px;
+            background: rgba(17, 24, 39, .72);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.05rem;
+            cursor: pointer;
+            transition: background .2s ease;
+        }
+        .product-zoom-trigger:hover {
+            background: rgba(17, 24, 39, .9);
+        }
+        .product-main-img {
+            cursor: default;
+        }
+        .product-zoom-modal .modal-content {
+            background: #0f1116;
+            border: 0;
+        }
+        .product-zoom-image {
+            width: 100%;
+            max-height: 80vh;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto;
+        }
     </style>
 
     <div class="container-xl">
@@ -74,7 +112,7 @@
                             @else
                                 @foreach ($carouselImages as $img)
                                     <div class="carousel-item @if($loop->first) active @endif">
-                                        <div class="tp-image-frame tp-image-frame-block">
+                                        <div class="tp-image-frame tp-image-frame-block product-zoom-wrap">
                                             <span class="tp-image-spinner" aria-hidden="true"></span>
                                             <img
                                                 class="d-block w-100 product-main-img tp-preload-img"
@@ -87,6 +125,16 @@
                                                 decoding="async"
                                                 onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;800&quot; height=&quot;600&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f2f2f2&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; dominant-baseline=&quot;middle&quot; text-anchor=&quot;middle&quot; fill=&quot;%23666&quot; font-family=&quot;Arial&quot; font-size=&quot;20&quot;>Sem imagem</text></svg>';"
                                             >
+                                            <button
+                                                type="button"
+                                                class="product-zoom-trigger"
+                                                data-zoom-trigger
+                                                data-zoom-src="{{ $img }}"
+                                                aria-label="Ampliar imagem"
+                                                title="Ampliar imagem"
+                                            >
+                                                <i class="bi bi-zoom-in" aria-hidden="true"></i>
+                                            </button>
                                         </div>
                                     </div>
                                 @endforeach
@@ -159,6 +207,11 @@
                         @php($isConsultPrice = is_numeric($priceExVat) && (float) $priceExVat <= 0)
                         @php($productKey = (string) (($product['id'] ?? null) ?: ($product['reference'] ?? '')))
                         @php($idOrReference = (string) (($product['id'] ?? null) ?: ($product['reference'] ?? '')))
+                        @php($productTitle = (string) ($product['title'] ?? 'Produto'))
+                        @php($productReference = (string) ($product['reference'] ?? ''))
+                        @php($productUrl = (string) request()->fullUrl())
+                        @php($waMessage = 'Olá! Tenho interesse neste produto: '.$productTitle.($productReference !== '' ? ' (Ref: '.$productReference.')' : '').'. Link: '.$productUrl)
+                        @php($waLink = 'https://wa.me/351914401299?text='.rawurlencode($waMessage))
                         <div class="d-flex flex-wrap align-items-center gap-2">
                             @if (is_numeric($priceExVat))
                                 <div class="store-price-box">
@@ -214,22 +267,31 @@
                                 @endauth
                             @endif
                         </div>
+                        <div class="mt-3">
+                            <a
+                                class="btn btn-success"
+                                href="{{ $waLink }}"
+                                target="_blank"
+                                rel="noopener"
+                            >
+                                Falar no WhatsApp
+                            </a>
+                        </div>
                     </div>
                 </div>
 
-                <div class="accordion" id="productDetails">
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingRaw">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRaw" aria-expanded="false" aria-controls="collapseRaw">
-                                Detalhes tecnicos (raw)
-                            </button>
-                        </h2>
-                        <div id="collapseRaw" class="accordion-collapse collapse" aria-labelledby="headingRaw" data-bs-parent="#productDetails">
-                            <div class="accordion-body">
-                                <pre class="mb-0" style="white-space: pre-wrap;">{{ json_encode($product['raw'] ?? [], JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) }}</pre>
-                            </div>
-                        </div>
-                    </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade product-zoom-modal" id="productZoomModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body pt-2">
+                    <img class="product-zoom-image" src="" alt="Imagem ampliada" data-zoom-image>
                 </div>
             </div>
         </div>
@@ -237,18 +299,91 @@
 
     <script>
         (function () {
-            var el = document.getElementById('productCarousel');
-            if (!el || typeof window.bootstrap === 'undefined') return;
+            var initialized = false;
 
-            el.addEventListener('slid.bs.carousel', function (e) {
-                var index = (e && typeof e.to === 'number') ? e.to : null;
-                if (index === null) return;
+            function initWhenBootstrapReady(callback) {
+                var attempts = 0;
+                var maxAttempts = 40;
 
-                var buttons = document.querySelectorAll('[data-bs-target="#productCarousel"][data-bs-slide-to]');
-                buttons.forEach(function (b) { b.classList.remove('is-active'); });
-                var active = document.querySelector('[data-bs-target="#productCarousel"][data-bs-slide-to="' + index + '"]');
-                if (active) active.classList.add('is-active');
-            });
+                function tryInit() {
+                    if (typeof window.bootstrap !== 'undefined') {
+                        callback();
+                        return;
+                    }
+
+                    attempts += 1;
+                    if (attempts < maxAttempts) {
+                        window.setTimeout(tryInit, 100);
+                    }
+                }
+
+                tryInit();
+            }
+
+            function initCarouselThumbState() {
+                var el = document.getElementById('productCarousel');
+                if (!el) return;
+
+                el.addEventListener('slid.bs.carousel', function (e) {
+                    var index = (e && typeof e.to === 'number') ? e.to : null;
+                    if (index === null) return;
+
+                    var buttons = document.querySelectorAll('[data-bs-target="#productCarousel"][data-bs-slide-to]');
+                    buttons.forEach(function (b) { b.classList.remove('is-active'); });
+                    var active = document.querySelector('[data-bs-target="#productCarousel"][data-bs-slide-to="' + index + '"]');
+                    if (active) active.classList.add('is-active');
+                });
+            }
+
+            function initProductZoom() {
+                var zoomModalEl = document.getElementById('productZoomModal');
+                if (!zoomModalEl) return;
+
+                var zoomImage = zoomModalEl.querySelector('[data-zoom-image]');
+                if (!zoomImage) return;
+
+                var zoomModal = new window.bootstrap.Modal(zoomModalEl);
+
+                function openZoom(src) {
+                    var imageSrc = String(src || '').trim();
+                    if (imageSrc === '') return;
+                    zoomImage.src = imageSrc;
+                    zoomModal.show();
+                }
+
+                document.addEventListener('click', function (event) {
+                    var trigger = event.target.closest('[data-zoom-trigger]');
+                    if (!trigger) return;
+
+                    var src = trigger.getAttribute('data-zoom-src') || '';
+                    openZoom(src);
+                });
+
+                document.addEventListener('dblclick', function (event) {
+                    var image = event.target.closest('.product-main-img[data-tp-src]');
+                    if (!image) return;
+                    openZoom(image.getAttribute('data-tp-src') || image.getAttribute('src') || '');
+                });
+
+                zoomModalEl.addEventListener('hidden.bs.modal', function () {
+                    zoomImage.src = '';
+                });
+            }
+
+            function init() {
+                if (initialized) return;
+                initialized = true;
+                initCarouselThumbState();
+                initProductZoom();
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function () {
+                    initWhenBootstrapReady(init);
+                });
+            } else {
+                initWhenBootstrapReady(init);
+            }
         })();
 
     </script>

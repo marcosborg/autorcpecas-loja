@@ -8,10 +8,13 @@ use Illuminate\Http\Request;
 
 class StoreCategoryController extends Controller
 {
-    public function index(CatalogProvider $catalog)
+    public function index(Request $request, CatalogProvider $catalog)
     {
         try {
+            $page = (int) $request->query('page', 1);
+            $perPage = (int) $request->query('perPage', 24);
             $categories = $catalog->categories();
+            $products = $catalog->products($page, $perPage);
             $totalProducts = $catalog->totalProducts();
             $totalBreakdown = $catalog->totalProductsBreakdown();
         } catch (\RuntimeException $e) {
@@ -25,8 +28,8 @@ class StoreCategoryController extends Controller
             'totalBreakdown' => $totalBreakdown,
             'selectedCategorySlug' => null,
             'models' => [],
-            'products' => null,
-            'categoryName' => null,
+            'products' => $products,
+            'categoryName' => 'Todos',
             'modelName' => null,
             'facets' => [],
             'selectedModel' => null,

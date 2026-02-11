@@ -93,6 +93,32 @@ class TelepecasCatalogService implements CatalogProvider
         return count($products);
     }
 
+    public function products(int $page = 1, int $perPage = 24): LengthAwarePaginator
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+
+        /** @var list<array<string, mixed>> $products */
+        $products = $this->indexProducts();
+
+        $total = count($products);
+        $items = collect($products)
+            ->slice(($page - 1) * $perPage, $perPage)
+            ->values()
+            ->all();
+
+        return new LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            [
+                'path' => url('/loja'),
+                'query' => request()->query(),
+            ],
+        );
+    }
+
     /**
      * @return array{total: int, byRepo: list<array{id: string, description: string, count: int}>}|null
      */

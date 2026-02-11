@@ -3,6 +3,9 @@
 namespace App\Providers;
 
 use App\Models\CmsMenuItem;
+use App\Models\CmsPage;
+use App\Models\Order;
+use App\Observers\OrderObserver;
 use App\Services\Catalog\CatalogProvider;
 use App\Services\Store\CartService;
 use App\Services\Database\DbEnvironment;
@@ -38,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
     {
         app(DbEnvironment::class)->apply();
         Paginator::useBootstrapFive();
+        Order::observe(OrderObserver::class);
 
         View::composer('store.*', function ($view): void {
             $count = 0;
@@ -83,6 +87,36 @@ class AppServiceProvider extends ServiceProvider
                 $menuItems = [];
             }
 
+            try {
+                $footerCmsPages = CmsPage::query()
+                    ->where('is_published', true)
+                    ->where('show_in_footer_menu', true)
+                    ->orderBy('sort_order')
+                    ->orderBy('id')
+                    ->get()
+                    ->map(function (CmsPage $page): array {
+                        $label = trim((string) ($page->footer_menu_label ?? ''));
+                        if ($label === '') {
+                            $label = (string) $page->title;
+                        }
+
+                        return [
+                            'id' => (int) $page->id,
+                            'label' => $label,
+                            'slug' => (string) $page->slug,
+                            'href' => route('cms.page', ['slug' => $page->slug]),
+                            'popup' => (bool) $page->open_in_footer_popup,
+                            'title' => (string) $page->title,
+                            'content' => (string) ($page->content ?? ''),
+                            'featured_image_path' => (string) ($page->featured_image_path ?? ''),
+                        ];
+                    })
+                    ->values()
+                    ->all();
+            } catch (QueryException) {
+                $footerCmsPages = [];
+            }
+
             if ($menuItems === []) {
                 $menuItems = [
                     ['label' => 'Inicio', 'href' => url('/'), 'open_in_new_tab' => false, 'is_button' => false, 'is_current' => request()->is('/')],
@@ -93,6 +127,7 @@ class AppServiceProvider extends ServiceProvider
 
             $view->with('storeCartCount', $count);
             $view->with('headerMenuItems', $menuItems);
+            $view->with('footerCmsPages', $footerCmsPages);
         });
     }
 }

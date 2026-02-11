@@ -74,6 +74,25 @@ class CmsPageForm
                     ->maxLength(80)
                     ->default('Falar connosco')
                     ->visible(fn ($get): bool => (bool) $get('show_contact_button')),
+                Toggle::make('show_in_footer_menu')
+                    ->label('Mostrar automaticamente no menu do footer')
+                    ->default(false)
+                    ->live(),
+                Toggle::make('open_in_footer_popup')
+                    ->label('Abrir em popup no footer')
+                    ->default(false)
+                    ->helperText('Quando ativo, esta pagina passa a aparecer automaticamente no menu do footer.')
+                    ->afterStateUpdated(function ($state, $set): void {
+                        if ((bool) $state) {
+                            $set('show_in_footer_menu', true);
+                        }
+                    })
+                    ->dehydrateStateUsing(fn ($state): bool => (bool) $state),
+                TextInput::make('footer_menu_label')
+                    ->label('Texto no menu do footer')
+                    ->maxLength(120)
+                    ->placeholder('Ex: Politica de Privacidade')
+                    ->visible(fn ($get): bool => (bool) $get('show_in_footer_menu')),
                 Toggle::make('is_published')
                     ->label('Publicada')
                     ->default(true),

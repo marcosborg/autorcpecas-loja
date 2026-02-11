@@ -13,6 +13,8 @@ interface CatalogProvider
 
     public function totalProducts(): int;
 
+    public function products(int $page = 1, int $perPage = 24): LengthAwarePaginator;
+
     /**
      * @return array{categoryName: string, paginator: LengthAwarePaginator, meta?: array<string, mixed>}
      */

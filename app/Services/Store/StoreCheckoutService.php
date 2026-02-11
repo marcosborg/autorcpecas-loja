@@ -9,6 +9,7 @@ use App\Models\OrderItem;
 use App\Models\OrderStatusHistory;
 use App\Models\User;
 use App\Services\Checkout\CheckoutOptionsService;
+use App\Services\Orders\OrderEmailService;
 use Illuminate\Support\Facades\DB;
 
 class StoreCheckoutService
@@ -16,6 +17,7 @@ class StoreCheckoutService
     public function __construct(
         private readonly CartService $cartService,
         private readonly CheckoutOptionsService $checkoutOptions,
+        private readonly OrderEmailService $orderEmails,
     ) {
     }
 
@@ -77,7 +79,7 @@ class StoreCheckoutService
         $totalExVat = $subtotal + $shipping + $paymentFee;
         $totalIncVat = round($totalExVat * (1 + ($vatRate / 100)), 2);
 
-        return DB::transaction(function () use (
+        $order = DB::transaction(function () use (
             $user,
             $cart,
             $shippingAddress,
@@ -139,5 +141,9 @@ class StoreCheckoutService
 
             return $order->fresh(['items']);
         });
+
+        $this->orderEmails->sendOrderCreated($order);
+
+        return $order;
     }
 }
