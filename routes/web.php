@@ -14,6 +14,7 @@ Route::prefix('loja')->group(function () {
     Route::get('categorias', [\App\Http\Controllers\Store\StoreCategoryController::class, 'index']);
     Route::get('categorias/{slug}', [\App\Http\Controllers\Store\StoreCategoryController::class, 'show']);
     Route::get('produtos/{idOrReference}', [\App\Http\Controllers\Store\StoreProductController::class, 'show']);
+    Route::post('produtos/{idOrReference}/consulta', [\App\Http\Controllers\Store\StoreProductController::class, 'requestConsultation']);
     Route::get('pesquisa', [\App\Http\Controllers\Store\StoreSearchController::class, 'index']);
     Route::get('pesquisa/sugestoes', [\App\Http\Controllers\Store\StoreSearchController::class, 'suggestions']);
     Route::get('checkout/simulador', [\App\Http\Controllers\Store\StoreCheckoutSimulatorController::class, 'index']);

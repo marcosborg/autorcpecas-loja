@@ -174,14 +174,18 @@
                                 <div class="col">
                                     <div class="card h-100">
                                         @if (is_string($img) && $img !== '')
-                                            <img
-                                                class="card-img-top store-img"
-                                                src="{{ $img }}"
-                                                alt=""
-                                                loading="lazy"
-                                                decoding="async"
-                                                onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;600&quot; height=&quot;400&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f2f2f2&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; dominant-baseline=&quot;middle&quot; text-anchor=&quot;middle&quot; fill=&quot;%23666&quot; font-family=&quot;Arial&quot; font-size=&quot;20&quot;>Sem imagem</text></svg>';"
-                                            >
+                                            <div class="tp-image-frame tp-image-frame-block">
+                                                <span class="tp-image-spinner" aria-hidden="true"></span>
+                                                <img
+                                                    class="card-img-top store-img tp-preload-img"
+                                                    src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400'><rect width='100%' height='100%' fill='%23f2f2f2'/></svg>"
+                                                    data-tp-src="{{ $img }}"
+                                                    alt=""
+                                                    loading="lazy"
+                                                    decoding="async"
+                                                    onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;600&quot; height=&quot;400&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f2f2f2&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; dominant-baseline=&quot;middle&quot; text-anchor=&quot;middle&quot; fill=&quot;%23666&quot; font-family=&quot;Arial&quot; font-size=&quot;20&quot;>Sem imagem</text></svg>';"
+                                                >
+                                            </div>
                                         @else
                                             <div class="store-img"></div>
                                         @endif
@@ -229,6 +233,20 @@
                                                 @endif
                                                 @if (!is_null($p['stock'] ?? null))
                                                     <span class="badge rounded-pill text-bg-secondary px-2 py-1">Stock: {{ $p['stock'] }}</span>
+                                                @endif
+                                                @if ($isConsultPrice)
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-sm btn-outline-primary"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#consultPriceModal"
+                                                        data-consult-trigger
+                                                        data-consult-action="{{ url('/loja/produtos/'.urlencode($productKey).'/consulta') }}"
+                                                        data-consult-title="{{ $p['title'] ?? 'Produto' }}"
+                                                        data-consult-reference="{{ $p['reference'] ?? '' }}"
+                                                    >
+                                                        Pedir contacto
+                                                    </button>
                                                 @endif
                                             </div>
                                         </div>

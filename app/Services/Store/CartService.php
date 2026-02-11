@@ -33,7 +33,6 @@ class CartService
      */
     public function addProduct(User $user, array $product, int $quantity = 1): Cart
     {
-        $quantity = max(1, $quantity);
         $cart = $this->openCartFor($user);
 
         $productKey = (string) (($product['id'] ?? null) ?: ($product['reference'] ?? ''));
@@ -52,7 +51,8 @@ class CartService
         $item->reference = (string) ($product['reference'] ?? '');
         $item->title = (string) ($product['title'] ?? 'Produto');
         $item->unit_price_ex_vat = $unitPriceExVat;
-        $item->quantity = (int) ($item->exists ? $item->quantity + $quantity : $quantity);
+        // Pecas usadas: cada item e unico, sem multiplas quantidades.
+        $item->quantity = 1;
         $item->weight_kg = $weightKg;
         $item->product_payload = $product;
         $item->save();
@@ -148,4 +148,3 @@ class CartService
         return is_numeric($value) ? round((float) $value, 2) : 0.0;
     }
 }
-

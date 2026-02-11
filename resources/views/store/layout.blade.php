@@ -14,9 +14,9 @@
             --bs-link-hover-color: #5a0000;
         }
 
-        a { color: #700000; }
-        a:hover { color: #5a0000; }
-        a:visited { color: #700000; }
+        a:not(.btn) { color: #700000; }
+        a:not(.btn):hover { color: #5a0000; }
+        a:not(.btn):visited { color: #700000; }
         .link-primary { color: #700000 !important; }
         .link-primary:hover { color: #5a0000 !important; }
 
@@ -54,6 +54,43 @@
             object-position: center bottom;
             background: #f2f2f2;
             display: block;
+        }
+        .tp-preload-img {
+            opacity: 0;
+            transition: opacity .2s ease;
+        }
+        .tp-preload-img.is-loaded {
+            opacity: 1;
+        }
+        .tp-image-frame {
+            position: relative;
+            display: inline-block;
+            background: #f2f2f2;
+        }
+        .tp-image-frame.tp-image-frame-block {
+            display: block;
+            width: 100%;
+        }
+        .tp-image-spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 26px;
+            height: 26px;
+            margin-top: -13px;
+            margin-left: -13px;
+            border-radius: 50%;
+            border: 3px solid rgba(112, 0, 0, .18);
+            border-top-color: #700000;
+            animation: tp-spin .75s linear infinite;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .tp-image-frame.is-loaded .tp-image-spinner {
+            display: none;
+        }
+        @keyframes tp-spin {
+            to { transform: rotate(360deg); }
         }
         .store-list-scroll { max-height: 380px; overflow: auto; }
         .select2-container--default .select2-selection--single { height: 38px; border: 1px solid #dee2e6; border-radius: .375rem; }
@@ -93,6 +130,13 @@
         .store-searchbar .autocomplete-ref { display: block; font-size: .82rem; color: #6c757d; }
         .store-searchbar .account { color: #fff; font-size: .9rem; }
         .store-searchbar .account small { display: block; opacity: .85; }
+        .store-searchbar a.account,
+        .store-searchbar a.account:visited,
+        .store-searchbar a.account:hover,
+        .store-searchbar a.account:focus {
+            color: #fff !important;
+            text-decoration: none;
+        }
 
         .store-price-box {
             display: inline-flex;
@@ -130,6 +174,90 @@
         .product-thumb-btn { border: 1px solid #dee2e6; border-radius: .5rem; overflow: hidden; padding: 0; background: #fff; }
         .product-thumb-btn img { width: 72px; height: 72px; object-fit: cover; display: block; background: #f2f2f2; }
         .product-thumb-btn.is-active { border-color: #700000; box-shadow: 0 0 0 .2rem rgba(112, 0, 0, .15); }
+
+        .store-footer {
+            margin-top: 2rem;
+            color: #fff;
+        }
+        .store-footer-top {
+            position: relative;
+            background-image: url('{{ asset('assets/img/background3.jpg') }}');
+            background-position: center;
+            background-size: cover;
+            background-repeat: no-repeat;
+            padding: 3rem 0 2.5rem;
+        }
+        .store-footer-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            letter-spacing: .02em;
+            margin-bottom: 1rem;
+        }
+        .store-footer-subtitle {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: .9rem;
+        }
+        .store-footer-links {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .store-footer-links li { margin-bottom: .5rem; }
+        .store-footer-links a {
+            color: rgba(255, 255, 255, .9) !important;
+            text-decoration: none;
+        }
+        .store-footer-links a:hover { color: #fff !important; text-decoration: underline; }
+        .store-footer-links li::before {
+            content: ">";
+            display: inline-block;
+            margin-right: .55rem;
+            color: #fff;
+            opacity: .9;
+            font-weight: 700;
+        }
+        .store-footer-contact-item {
+            display: flex;
+            align-items: flex-start;
+            gap: .6rem;
+            margin-bottom: .7rem;
+        }
+        .store-footer-contact-icon {
+            width: 1.15rem;
+            text-align: center;
+            opacity: .9;
+        }
+        .store-footer-bottom {
+            background: #700000;
+            padding: .95rem 0;
+            border-top: 1px solid rgba(255, 255, 255, .12);
+        }
+        .store-footer-bottom .copy {
+            color: rgba(255, 255, 255, .86);
+            font-size: .92rem;
+        }
+        .store-footer-payments {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: end;
+            gap: .45rem;
+        }
+        .store-footer-pay-badge {
+            background: rgba(255, 255, 255, .14);
+            border: 1px solid rgba(255, 255, 255, .22);
+            color: #fff;
+            border-radius: .35rem;
+            padding: .28rem .52rem;
+            font-size: .72rem;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        @media (max-width: 991.98px) {
+            .store-footer-top { padding: 2rem 0 1.6rem; }
+            .store-footer-payments { justify-content: start; margin-top: .8rem; }
+        }
     </style>
 </head>
 <body>
@@ -217,25 +345,170 @@
     </div>
 </header>
 
-<main>
-    <div class="container-xl mt-3">
-        @if (session('success'))
-            <div class="alert alert-success">{{ session('success') }}</div>
-        @endif
-        @if ($errors->any())
-            <div class="alert alert-danger">
-                @foreach ($errors->all() as $error)
-                    <div>{{ $error }}</div>
-                @endforeach
-            </div>
-        @endif
-    </div>
+<main class="@if(!request()->is('/')) mt-3 @endif">
+    @if (session('success') || $errors->any())
+        <div class="container-xl">
+            @if (session('success'))
+                <div class="alert alert-success">{{ session('success') }}</div>
+            @endif
+            @if ($errors->any())
+                <div class="alert alert-danger">
+                    @foreach ($errors->all() as $error)
+                        <div>{{ $error }}</div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+    @endif
 @yield('content')
 </main>
 
-<footer class="border-top py-4 mt-4">
-    <div class="container text-muted small"></div>
+<footer class="store-footer">
+    <div class="store-footer-top">
+        <div class="container-xl">
+            <div class="row g-4">
+                <div class="col-12 col-lg-3">
+                    <div class="store-footer-title">Auto RC Pecas</div>
+                    <div class="small text-white-50">Pecas usadas e salvadas para a tua viatura, com envio rapido e apoio dedicado.</div>
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <div class="store-footer-subtitle">Sua Conta</div>
+                    <ul class="store-footer-links">
+                        <li><a href="{{ url('/loja/conta/login') }}">Entrar</a></li>
+                        <li><a href="{{ url('/loja/conta/registo') }}">Criar conta</a></li>
+                        <li><a href="{{ url('/loja/carrinho') }}">Carrinho</a></li>
+                        <li><a href="{{ url('/loja/conta/encomendas') }}">Encomendas</a></li>
+                    </ul>
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <div class="store-footer-subtitle">Produtos</div>
+                    <ul class="store-footer-links">
+                        <li><a href="{{ url('/loja') }}">Destaques</a></li>
+                        <li><a href="{{ url('/loja/categorias') }}">Marcas</a></li>
+                        <li><a href="{{ url('/loja/pesquisa') }}">Pesquisar referencia</a></li>
+                    </ul>
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <div class="store-footer-subtitle">Empresa</div>
+                    <ul class="store-footer-links">
+                        <li><a href="{{ url('/sobre-nos') }}">Sobre nos</a></li>
+                        <li><a href="{{ url('/contactos') }}">Contactos</a></li>
+                        <li><a href="{{ url('/marcas') }}">Todas as marcas</a></li>
+                    </ul>
+                </div>
+                <div class="col-12 col-lg-3">
+                    <div class="store-footer-subtitle">Guardar Informacao</div>
+                    <div class="store-footer-contact-item">
+                        <div class="store-footer-contact-icon">&#128205;</div>
+                        <div>Auto RC Pecas<br>Rua Alto do Capitao, 327<br>3880-728 Ovar, Portugal</div>
+                    </div>
+                    <div class="store-footer-contact-item">
+                        <div class="store-footer-contact-icon">&#128222;</div>
+                        <div>+351 914 401 299</div>
+                    </div>
+                    <div class="store-footer-contact-item">
+                        <div class="store-footer-contact-icon">&#9993;</div>
+                        <div>marketing@autorcpecas.pt</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="store-footer-bottom">
+        <div class="container-xl">
+            <div class="row align-items-center g-2">
+                <div class="col-12 col-lg-7 copy">
+                    &copy; {{ date('Y') }} Auto RC Pecas. Plataforma de comercio eletronico.
+                </div>
+                <div class="col-12 col-lg-5">
+                    <div class="store-footer-payments">
+                        <span class="store-footer-pay-badge">MB</span>
+                        <span class="store-footer-pay-badge">MB Way</span>
+                        <span class="store-footer-pay-badge">Visa</span>
+                        <span class="store-footer-pay-badge">Mastercard</span>
+                        <span class="store-footer-pay-badge">Transferencia</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </footer>
+
+<div class="modal fade" id="consultPriceModal" tabindex="-1" aria-labelledby="consultPriceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="consultPriceModalLabel">Pedido de contacto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <form method="post" action="{{ old('consult_action', '#') }}" data-consult-form>
+                @csrf
+                <input type="hidden" name="consult_action" value="{{ old('consult_action', '') }}" data-consult-action-input>
+                <input type="hidden" name="product_title" value="{{ old('product_title', '') }}" data-consult-product-title-input>
+                <input type="hidden" name="product_reference" value="{{ old('product_reference', '') }}" data-consult-product-ref-input>
+                <input type="hidden" name="form_started_at" value="{{ old('form_started_at', now()->timestamp) }}" data-consult-started-at>
+                <div style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;" aria-hidden="true">
+                    <label for="consult-website">Website</label>
+                    <input type="text" id="consult-website" name="website" value="{{ old('website', '') }}" tabindex="-1" autocomplete="off">
+                </div>
+                <div class="modal-body">
+                    <div class="small text-muted mb-3" data-consult-product-summary>
+                        Produto: <strong>{{ old('product_title', 'Produto') }}</strong>
+                        @if (old('product_reference'))
+                            <div>Ref.: {{ old('product_reference') }}</div>
+                        @endif
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Nome</label>
+                        <input
+                            type="text"
+                            name="name"
+                            class="form-control @error('name') is-invalid @enderror"
+                            value="{{ old('name', auth()->user()->name ?? '') }}"
+                            required
+                        >
+                        @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input
+                            type="email"
+                            name="email"
+                            class="form-control @error('email') is-invalid @enderror"
+                            value="{{ old('email', auth()->user()->email ?? '') }}"
+                            required
+                        >
+                        @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Telefone</label>
+                        <input
+                            type="text"
+                            name="phone"
+                            class="form-control @error('phone') is-invalid @enderror"
+                            value="{{ old('phone', auth()->user()->phone ?? '') }}"
+                            required
+                        >
+                        @error('phone')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div class="mb-0">
+                        <label class="form-label">Mensagem (opcional)</label>
+                        <textarea name="message" class="form-control @error('message') is-invalid @enderror" rows="4" placeholder="Indica se preferes contacto por email ou telefone.">{{ old('message') }}</textarea>
+                        @error('message')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Enviar pedido</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
@@ -359,6 +632,124 @@
                 menu.classList.add('is-visible');
             }
         });
+    })();
+
+    (function () {
+        var fallbackSvg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400'><rect width='100%' height='100%' fill='%23f2f2f2'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23666' font-family='Arial' font-size='20'>Sem imagem</text></svg>";
+        var selector = 'img[data-tp-src]';
+
+        function markLoaded(img) {
+            img.classList.add('is-loaded');
+            img.removeAttribute('data-tp-loading');
+            var frame = img.closest('.tp-image-frame');
+            if (frame) frame.classList.add('is-loaded');
+        }
+
+        function preloadInto(img) {
+            if (!img || img.getAttribute('data-tp-loading') === '1') return;
+            var targetSrc = String(img.getAttribute('data-tp-src') || '').trim();
+            if (targetSrc === '') {
+                markLoaded(img);
+                return;
+            }
+
+            img.setAttribute('data-tp-loading', '1');
+            var preloader = new Image();
+            preloader.onload = function () {
+                img.src = targetSrc;
+                markLoaded(img);
+            };
+            preloader.onerror = function () {
+                img.src = fallbackSvg;
+                markLoaded(img);
+            };
+            preloader.src = targetSrc;
+        }
+
+        function initPreload() {
+            var images = Array.prototype.slice.call(document.querySelectorAll(selector));
+            if (images.length === 0) return;
+
+            if (!('IntersectionObserver' in window)) {
+                images.forEach(preloadInto);
+                return;
+            }
+
+            var observer = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
+                    if (!entry.isIntersecting) return;
+                    observer.unobserve(entry.target);
+                    preloadInto(entry.target);
+                });
+            }, { rootMargin: '280px 0px' });
+
+            images.forEach(function (img) {
+                if (img.getAttribute('data-tp-eager') === '1') {
+                    preloadInto(img);
+                    return;
+                }
+                observer.observe(img);
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initPreload);
+        } else {
+            initPreload();
+        }
+    })();
+
+    (function () {
+        var modalEl = document.getElementById('consultPriceModal');
+        if (!modalEl || typeof window.bootstrap === 'undefined') return;
+
+        var form = modalEl.querySelector('form[data-consult-form]');
+        var actionInput = modalEl.querySelector('[data-consult-action-input]');
+        var titleInput = modalEl.querySelector('[data-consult-product-title-input]');
+        var refInput = modalEl.querySelector('[data-consult-product-ref-input]');
+        var summary = modalEl.querySelector('[data-consult-product-summary]');
+        var fallbackAction = "{{ url('/loja') }}";
+
+        function updateSummary(title, reference) {
+            var safeTitle = String(title || 'Produto')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            var safeRef = String(reference || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+            summary.innerHTML = 'Produto: <strong>' + safeTitle + '</strong>' + (safeRef ? '<div>Ref.: ' + safeRef + '</div>' : '');
+        }
+
+        document.addEventListener('click', function (event) {
+            var trigger = event.target.closest('[data-consult-trigger]');
+            if (!trigger) return;
+
+            var action = String(trigger.getAttribute('data-consult-action') || '').trim();
+            var title = String(trigger.getAttribute('data-consult-title') || '').trim();
+            var reference = String(trigger.getAttribute('data-consult-reference') || '').trim();
+
+            form.setAttribute('action', action || fallbackAction);
+            if (actionInput) actionInput.value = action;
+            if (titleInput) titleInput.value = title;
+            if (refInput) refInput.value = reference;
+            updateSummary(title, reference);
+        });
+
+        var shouldOpen = {{ $errors->has('name') || $errors->has('email') || $errors->has('phone') || $errors->has('message') ? 'true' : 'false' }};
+        if (shouldOpen) {
+            var openAction = "{{ old('consult_action', '') }}";
+            var openTitle = "{{ old('product_title', '') }}";
+            var openReference = "{{ old('product_reference', '') }}";
+            if (openAction !== '') {
+                form.setAttribute('action', openAction);
+            }
+            updateSummary(openTitle, openReference);
+            var modal = new window.bootstrap.Modal(modalEl);
+            modal.show();
+        }
     })();
 </script>
 </body>

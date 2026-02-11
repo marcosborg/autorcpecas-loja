@@ -62,14 +62,18 @@
                             <div class="d-flex flex-column flex-md-row gap-3">
                                 <div class="flex-shrink-0">
                                     @if (is_string($img) && $img !== '')
-                                        <img
-                                            class="thumb"
-                                            src="{{ $img }}"
-                                            alt=""
-                                            loading="lazy"
-                                            decoding="async"
-                                            onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;600&quot; height=&quot;400&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f2f2f2&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; dominant-baseline=&quot;middle&quot; text-anchor=&quot;middle&quot; fill=&quot;%23666&quot; font-family=&quot;Arial&quot; font-size=&quot;20&quot;>Sem imagem</text></svg>';"
-                                        >
+                                        <div class="tp-image-frame">
+                                            <span class="tp-image-spinner" aria-hidden="true"></span>
+                                            <img
+                                                class="thumb tp-preload-img"
+                                                src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400'><rect width='100%' height='100%' fill='%23f2f2f2'/></svg>"
+                                                data-tp-src="{{ $img }}"
+                                                alt=""
+                                                loading="lazy"
+                                                decoding="async"
+                                                onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;600&quot; height=&quot;400&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f2f2f2&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; dominant-baseline=&quot;middle&quot; text-anchor=&quot;middle&quot; fill=&quot;%23666&quot; font-family=&quot;Arial&quot; font-size=&quot;20&quot;>Sem imagem</text></svg>';"
+                                            >
+                                        </div>
                                     @else
                                         <div class="thumb"></div>
                                     @endif
@@ -92,7 +96,7 @@
                                         <div class="meta-line mt-1"><strong>Ref. TP:</strong> {{ $tpRef }}</div>
                                     @endif
                                     @if (is_numeric($priceExVat))
-                                        <div class="mt-2">
+                                        <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
                                             <div class="store-price-box">
                                                 @if ($isConsultPrice)
                                                     <div>
@@ -106,6 +110,20 @@
                                                     <div class="price-note">sem IVA</div>
                                                 @endif
                                             </div>
+                                            @if ($isConsultPrice)
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-sm btn-outline-primary"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#consultPriceModal"
+                                                    data-consult-trigger
+                                                    data-consult-action="{{ url('/loja/produtos/'.urlencode($productKey).'/consulta') }}"
+                                                    data-consult-title="{{ $p['title'] ?? 'Produto' }}"
+                                                    data-consult-reference="{{ $p['reference'] ?? '' }}"
+                                                >
+                                                    Pedir contacto
+                                                </button>
+                                            @endif
                                         </div>
                                     @endif
                                 </div>

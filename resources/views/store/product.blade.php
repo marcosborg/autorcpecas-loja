@@ -74,15 +74,20 @@
                             @else
                                 @foreach ($carouselImages as $img)
                                     <div class="carousel-item @if($loop->first) active @endif">
-                                        <img
-                                            class="d-block w-100 product-main-img"
-                                            src="{{ $img }}"
-                                            alt=""
-                                            loading="{{ $loop->first ? 'eager' : 'lazy' }}"
-                                            fetchpriority="{{ $loop->first ? 'high' : 'auto' }}"
-                                            decoding="async"
-                                            onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;800&quot; height=&quot;600&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f2f2f2&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; dominant-baseline=&quot;middle&quot; text-anchor=&quot;middle&quot; fill=&quot;%23666&quot; font-family=&quot;Arial&quot; font-size=&quot;20&quot;>Sem imagem</text></svg>';"
-                                        >
+                                        <div class="tp-image-frame tp-image-frame-block">
+                                            <span class="tp-image-spinner" aria-hidden="true"></span>
+                                            <img
+                                                class="d-block w-100 product-main-img tp-preload-img"
+                                                src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><rect width='100%' height='100%' fill='%23f2f2f2'/></svg>"
+                                                data-tp-src="{{ $img }}"
+                                                data-tp-eager="1"
+                                                alt=""
+                                                loading="{{ $loop->first ? 'eager' : 'lazy' }}"
+                                                fetchpriority="{{ $loop->first ? 'high' : 'auto' }}"
+                                                decoding="async"
+                                                onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;800&quot; height=&quot;600&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f2f2f2&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; dominant-baseline=&quot;middle&quot; text-anchor=&quot;middle&quot; fill=&quot;%23666&quot; font-family=&quot;Arial&quot; font-size=&quot;20&quot;>Sem imagem</text></svg>';"
+                                            >
+                                        </div>
                                     </div>
                                 @endforeach
                             @endif
@@ -111,7 +116,18 @@
                                         data-bs-slide-to="{{ $loop->index }}"
                                         aria-label="Imagem {{ $loop->iteration }}"
                                     >
-                                        <img src="{{ $thumb }}" alt="" loading="lazy" decoding="async" onerror="this.remove();">
+                                        <span class="tp-image-frame">
+                                            <span class="tp-image-spinner" aria-hidden="true"></span>
+                                            <img
+                                                class="tp-preload-img"
+                                                src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='72' height='72'><rect width='100%' height='100%' fill='%23f2f2f2'/></svg>"
+                                                data-tp-src="{{ $thumb }}"
+                                                alt=""
+                                                loading="lazy"
+                                                decoding="async"
+                                                onerror="this.remove();"
+                                            >
+                                        </span>
                                     </button>
                                 @endforeach
                             </div>
@@ -142,6 +158,7 @@
                         @php($priceExVat = $product['price_ex_vat'] ?? ($product['price'] ?? null))
                         @php($isConsultPrice = is_numeric($priceExVat) && (float) $priceExVat <= 0)
                         @php($productKey = (string) (($product['id'] ?? null) ?: ($product['reference'] ?? '')))
+                        @php($idOrReference = (string) (($product['id'] ?? null) ?: ($product['reference'] ?? '')))
                         <div class="d-flex flex-wrap align-items-center gap-2">
                             @if (is_numeric($priceExVat))
                                 <div class="store-price-box">
@@ -170,17 +187,32 @@
                         </div>
 
                         <div class="mt-3 d-flex gap-2">
-                            @auth
-                                <form method="post" action="{{ url('/loja/carrinho/items') }}" class="d-inline">
-                                    @csrf
-                                    <input type="hidden" name="product_key" value="{{ $productKey }}">
-                                    <input type="hidden" name="quantity" value="1">
-                                    <button class="btn btn-primary" type="submit">Adicionar ao carrinho</button>
-                                </form>
-                                <a class="btn btn-outline-primary" href="{{ url('/loja/checkout') }}">Ir para checkout</a>
+                            @if ($isConsultPrice)
+                                <button
+                                    class="btn btn-primary"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#consultPriceModal"
+                                    data-consult-trigger
+                                    data-consult-action="{{ url('/loja/produtos/'.urlencode($idOrReference).'/consulta') }}"
+                                    data-consult-title="{{ $product['title'] ?? 'Produto' }}"
+                                    data-consult-reference="{{ $product['reference'] ?? '' }}"
+                                >
+                                    Pedir contacto
+                                </button>
                             @else
-                                <a class="btn btn-primary" href="{{ url('/loja/conta/login') }}">Entrar para comprar</a>
-                            @endauth
+                                @auth
+                                    <form method="post" action="{{ url('/loja/carrinho/items') }}" class="d-inline">
+                                        @csrf
+                                        <input type="hidden" name="product_key" value="{{ $productKey }}">
+                                        <input type="hidden" name="quantity" value="1">
+                                        <button class="btn btn-primary" type="submit">Adicionar ao carrinho</button>
+                                    </form>
+                                    <a class="btn btn-outline-primary" href="{{ url('/loja/checkout') }}">Ir para checkout</a>
+                                @else
+                                    <a class="btn btn-primary" href="{{ url('/loja/conta/login') }}">Entrar para comprar</a>
+                                @endauth
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -218,6 +250,7 @@
                 if (active) active.classList.add('is-active');
             });
         })();
+
     </script>
 
     @if (config('app.debug'))

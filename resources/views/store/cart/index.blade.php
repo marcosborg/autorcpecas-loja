@@ -32,14 +32,7 @@
                                                     @endif
                                                 </td>
                                                 <td class="text-end">{{ number_format((float) $item->unit_price_ex_vat, 2, ',', ' ') }} EUR</td>
-                                                <td class="text-end">
-                                                    <form class="d-inline-flex gap-2 justify-content-end" method="post" action="{{ url('/loja/carrinho/items/'.$item->id) }}">
-                                                        @csrf
-                                                        @method('put')
-                                                        <input class="form-control form-control-sm" style="width:88px" type="number" min="0" max="99" name="quantity" value="{{ $item->quantity }}">
-                                                        <button class="btn btn-sm btn-outline-secondary" type="submit">Atualizar</button>
-                                                    </form>
-                                                </td>
+                                                <td class="text-end">1</td>
                                                 <td class="text-end">{{ number_format((float) $item->unit_price_ex_vat * (int) $item->quantity, 2, ',', ' ') }} EUR</td>
                                                 <td class="text-end">
                                                     <form method="post" action="{{ url('/loja/carrinho/items/'.$item->id) }}">
@@ -80,4 +73,3 @@
         </div>
     </div>
 @endsection
-
