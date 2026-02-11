@@ -259,6 +259,7 @@ class TpSoftwareCatalogService implements CatalogProvider
             ->values()
             ->map(fn (array $p): array => $this->withCoverImage($p))
             ->all();
+        $items = $this->enrichMissingPrices($items, (($page - 1) * $perPage));
 
         return new LengthAwarePaginator(
             $items,
@@ -374,6 +375,7 @@ class TpSoftwareCatalogService implements CatalogProvider
             ->values()
             ->map(fn (array $p): array => $this->withCoverImage($p))
             ->all();
+        $items = $this->enrichMissingPrices($items);
 
         return [
             'categoryName' => $makeName,
@@ -514,6 +516,7 @@ class TpSoftwareCatalogService implements CatalogProvider
             ->values()
             ->map(fn (array $p): array => $this->withCoverImage($p))
             ->all();
+        $items = $this->enrichMissingPrices($items);
 
         return new LengthAwarePaginator($items, $total, $perPage, $page, [
             'path' => url('/loja/pesquisa'),
@@ -638,12 +641,14 @@ class TpSoftwareCatalogService implements CatalogProvider
             throw new \RuntimeException('TP Software: índice de produtos ainda não foi gerado. Corre: php artisan tpsoftware:index');
         }
 
-        return collect($indexed)
+        $items = collect($indexed)
             ->shuffle()
             ->take($count)
             ->values()
             ->map(fn (array $p): array => $this->withCoverImage($p))
             ->all();
+
+        return $this->enrichMissingPrices($items);
     }
 
     public function modelsForMakeSlug(string $makeSlug): array
@@ -1040,6 +1045,81 @@ class TpSoftwareCatalogService implements CatalogProvider
             ...$product,
             'cover_image' => $this->pickCoverUrlFromUrls($urls) ?? $urls[0],
         ];
+    }
+
+    /**
+     * Preenche preco em cards quando o indice local nao traz price/price_ex_vat.
+     * Faz lookup live por produto, com limite para evitar degradacao de performance.
+     *
+     * @param  list<array<string, mixed>>  $products
+     * @return list<array<string, mixed>>
+     */
+    private function enrichMissingPrices(array $products, ?int $startIndex = null): array
+    {
+        if (! (bool) config('tpsoftware.catalog.price_fallback_enabled', true)) {
+            return $products;
+        }
+
+        $maxLookups = (int) config('tpsoftware.catalog.price_fallback_max_lookups', 12);
+        $maxLookups = max(0, min(100, $maxLookups));
+
+        if ($maxLookups === 0 || count($products) === 0) {
+            return $products;
+        }
+
+        $lookups = 0;
+
+        foreach ($products as $idx => $product) {
+            if (! is_array($product) || $this->hasAnyPrice($product)) {
+                continue;
+            }
+
+            if ($lookups >= $maxLookups) {
+                break;
+            }
+
+            $lookupKey = trim((string) ($product['id'] ?? ''));
+            if ($lookupKey === '') {
+                $lookupKey = trim((string) ($product['reference'] ?? ''));
+            }
+
+            if ($lookupKey === '') {
+                continue;
+            }
+
+            $indexPosition = is_int($startIndex) ? ($startIndex + $idx) : null;
+            $raw = $this->fetchProductRawByIdOrReference($lookupKey, $indexPosition);
+            $lookups++;
+
+            if (! is_array($raw)) {
+                continue;
+            }
+
+            $live = $this->normalizeProduct($raw, includeRaw: false);
+            if (! $this->hasAnyPrice($live)) {
+                continue;
+            }
+
+            $products[$idx] = array_merge($product, [
+                'price' => $live['price'] ?? ($product['price'] ?? null),
+                'price_ex_vat' => $live['price_ex_vat'] ?? ($product['price_ex_vat'] ?? null),
+                'vat_rate' => $live['vat_rate'] ?? ($product['vat_rate'] ?? null),
+            ]);
+        }
+
+        return $products;
+    }
+
+    /**
+     * @param  array<string, mixed>  $product
+     */
+    private function hasAnyPrice(array $product): bool
+    {
+        if (is_numeric($product['price_ex_vat'] ?? null)) {
+            return true;
+        }
+
+        return is_numeric($product['price'] ?? null);
     }
 
     /**

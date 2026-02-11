@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Carbon\CarbonImmutable;
 use UnitEnum;
 
 class Maintenance extends Page
@@ -80,6 +81,15 @@ class Maintenance extends Page
                 ->requiresConfirmation()
                 ->action(function (array $data): void {
                     $force = (bool) ($data['force'] ?? false);
+
+                    Storage::disk('local')->put(
+                        'maintenance/tpsoftware-index.json',
+                        json_encode([
+                            'status' => 'queued',
+                            'force' => $force,
+                            'queued_at' => now()->toISOString(),
+                        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    );
 
                     ReindexTpSoftware::dispatch($force);
 
@@ -276,6 +286,7 @@ class Maintenance extends Page
         $env = app(DbEnvironment::class);
 
         $tpsoftwareIndex = $this->readLocalJson('maintenance/tpsoftware-index.json');
+        $tpsoftwareIndex = $this->normalizeIndexStatus($tpsoftwareIndex);
 
         $this->dbStatus = [
             'mode' => $env->getMode(),
@@ -284,6 +295,11 @@ class Maintenance extends Page
             'production' => $this->connectionSummary('production'),
             'tpsoftware_index' => $tpsoftwareIndex,
         ];
+    }
+
+    public function refreshStatusTick(): void
+    {
+        $this->refreshDbStatus();
     }
 
     /**
@@ -317,5 +333,65 @@ class Maintenance extends Page
         $data = json_decode($json, true);
 
         return is_array($data) ? $data : null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $status
+     * @return array<string, mixed>|null
+     */
+    private function normalizeIndexStatus(?array $status): ?array
+    {
+        if (! is_array($status)) {
+            return null;
+        }
+
+        $raw = (string) ($status['status'] ?? '');
+        $raw = strtolower(trim($raw));
+        if ($raw === '') {
+            $raw = 'idle';
+        }
+
+        $label = match ($raw) {
+            'queued' => 'Em fila',
+            'running' => 'A correr',
+            'ok' => 'Concluido',
+            'error' => 'Erro',
+            default => 'Parado',
+        };
+
+        $tone = match ($raw) {
+            'queued' => 'warning',
+            'running' => 'info',
+            'ok' => 'success',
+            'error' => 'danger',
+            default => 'gray',
+        };
+
+        $runningSince = $this->minutesSince((string) ($status['started_at'] ?? ''));
+        if ($raw === 'running' && $runningSince !== null && $runningSince >= 10) {
+            $status['stalled_warning'] = 'Index em running ha '.$runningSince.' min. Verifica se o worker da queue esta ativo.';
+        }
+
+        $status['status'] = $raw;
+        $status['status_label'] = $label;
+        $status['status_tone'] = $tone;
+
+        return $status;
+    }
+
+    private function minutesSince(string $iso): ?int
+    {
+        $iso = trim($iso);
+        if ($iso === '') {
+            return null;
+        }
+
+        try {
+            $from = CarbonImmutable::parse($iso);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $from->diffInMinutes(now(), false);
     }
 }

@@ -40,6 +40,8 @@ return [
         'index_ttl_seconds' => (int) env('TPSOFTWARE_INDEX_TTL_SECONDS', 1800),
         'index_path' => env('TPSOFTWARE_INDEX_PATH', storage_path('app/tpsoftware/index.json')),
         'index_meta_path' => env('TPSOFTWARE_INDEX_META_PATH', storage_path('app/tpsoftware/index.meta.json')),
+        'price_fallback_enabled' => env('TPSOFTWARE_PRICE_FALLBACK_ENABLED', true),
+        'price_fallback_max_lookups' => (int) env('TPSOFTWARE_PRICE_FALLBACK_MAX_LOOKUPS', 12),
 
         // Campo usado como "categoria" na vitrine (por defeito marca do veículo)
         'category_field' => env('TPSOFTWARE_CATEGORY_FIELD', 'vehicle_make_name'),
@@ -48,3 +50,4 @@ return [
         'model_field' => env('TPSOFTWARE_MODEL_FIELD', 'vehicle_model_name'),
     ],
 ];
+

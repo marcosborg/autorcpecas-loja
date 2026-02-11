@@ -1,5 +1,5 @@
 <x-filament-panels::page>
-    <div class="space-y-4">
+    <div class="space-y-4" wire:poll.5s="refreshStatusTick">
         <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
             <div class="text-sm text-gray-600 dark:text-gray-300">
                 Usa os botões no topo para correr tarefas de manutenção sem terminal.
@@ -47,8 +47,26 @@
             @php($idx = $dbStatus['tpsoftware_index'])
             <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
                 <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">TP Software - Index</div>
+
+                @php($tone = $idx['status_tone'] ?? 'gray')
+                @php($badgeClasses = match($tone) {
+                    'success' => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300',
+                    'info' => 'bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-300',
+                    'warning' => 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300',
+                    'danger' => 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300',
+                    default => 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300',
+                })
+
                 <div class="text-sm text-gray-700 dark:text-gray-200">
-                    <div><span class="font-semibold">Status:</span> {{ $idx['status'] ?? 'n/a' }}</div>
+                    <div class="mb-2">
+                        <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold {{ $badgeClasses }}">
+                            {{ $idx['status_label'] ?? ($idx['status'] ?? 'n/a') }}
+                        </span>
+                    </div>
+                    <div><span class="font-semibold">Status técnico:</span> {{ $idx['status'] ?? 'n/a' }}</div>
+                    @if (!empty($idx['queued_at'] ?? null))
+                        <div><span class="font-semibold">Em fila:</span> {{ $idx['queued_at'] }}</div>
+                    @endif
                     @if (!empty($idx['started_at'] ?? null))
                         <div><span class="font-semibold">Iniciado:</span> {{ $idx['started_at'] }}</div>
                     @endif
@@ -63,6 +81,14 @@
                     @if (!empty($idx['error'] ?? null))
                         <div class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $idx['error'] }}</div>
                     @endif
+                    @if (!empty($idx['stalled_warning'] ?? null))
+                        <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                            {{ $idx['stalled_warning'] }}
+                        </div>
+                    @endif
+                    <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                        Atualização automática a cada 5s.
+                    </div>
                 </div>
             </div>
         @endif

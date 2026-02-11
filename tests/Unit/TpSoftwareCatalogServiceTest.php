@@ -71,6 +71,7 @@ class TpSoftwareCatalogServiceTest extends TestCase
     public function test_non_reference_search_uses_index_only(): void
     {
         config()->set('tpsoftware.catalog.index_enabled', true);
+        config()->set('tpsoftware.catalog.price_fallback_enabled', false);
         config()->set('tpsoftware.cache_store', 'array');
         Cache::store('array')->flush();
 
