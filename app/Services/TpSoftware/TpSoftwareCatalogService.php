@@ -9,6 +9,9 @@ use Illuminate\Support\Str;
 
 class TpSoftwareCatalogService implements CatalogProvider
 {
+    /** @var array<string, int>|null */
+    private ?array $indexPositionMap = null;
+
     public function __construct(
         private readonly TpSoftwareClient $client,
         private readonly TpSoftwareIndexStore $indexStore,
@@ -1087,7 +1090,9 @@ class TpSoftwareCatalogService implements CatalogProvider
                 continue;
             }
 
-            $indexPosition = is_int($startIndex) ? ($startIndex + $idx) : null;
+            $indexPosition = is_int($startIndex)
+                ? ($startIndex + $idx)
+                : $this->inferIndexPosition($product);
             $raw = $this->fetchProductRawByIdOrReference($lookupKey, $indexPosition);
             $lookups++;
 
@@ -1120,6 +1125,73 @@ class TpSoftwareCatalogService implements CatalogProvider
         }
 
         return is_numeric($product['price'] ?? null);
+    }
+
+    /**
+     * @param  array<string, mixed>  $product
+     */
+    private function inferIndexPosition(array $product): ?int
+    {
+        $map = $this->indexPositionByLookupKey();
+        if ($map === []) {
+            return null;
+        }
+
+        $id = trim((string) ($product['id'] ?? ''));
+        if ($id !== '') {
+            $k = 'id:'.$id;
+            if (isset($map[$k])) {
+                return $map[$k];
+            }
+        }
+
+        $ref = mb_strtolower(trim((string) ($product['reference'] ?? '')), 'UTF-8');
+        if ($ref !== '') {
+            $k = 'ref:'.$ref;
+            if (isset($map[$k])) {
+                return $map[$k];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function indexPositionByLookupKey(): array
+    {
+        if (is_array($this->indexPositionMap)) {
+            return $this->indexPositionMap;
+        }
+
+        $indexed = $this->indexedProducts();
+        if (! is_array($indexed) || count($indexed) === 0) {
+            $this->indexPositionMap = [];
+
+            return $this->indexPositionMap;
+        }
+
+        $map = [];
+        foreach ($indexed as $pos => $product) {
+            if (! is_array($product)) {
+                continue;
+            }
+
+            $id = trim((string) ($product['id'] ?? ''));
+            if ($id !== '') {
+                $map['id:'.$id] = (int) $pos;
+            }
+
+            $ref = mb_strtolower(trim((string) ($product['reference'] ?? '')), 'UTF-8');
+            if ($ref !== '') {
+                $map['ref:'.$ref] = (int) $pos;
+            }
+        }
+
+        $this->indexPositionMap = $map;
+
+        return $this->indexPositionMap;
     }
 
     /**
@@ -1228,8 +1300,16 @@ class TpSoftwareCatalogService implements CatalogProvider
 
         if (is_int($indexPosition) && $indexPosition >= 0) {
             $hintPage = intdiv($indexPosition, $pageSize) + 1;
+            $candidatePages = [];
+            for ($offset = 0; $offset <= 5; $offset++) {
+                $candidatePages[] = $hintPage + $offset;
+                if ($offset > 0) {
+                    $candidatePages[] = $hintPage - $offset;
+                }
+            }
+            $candidatePages = array_values(array_unique(array_filter($candidatePages, fn ($p): bool => is_int($p) && $p >= 1)));
 
-            foreach ([$hintPage, $hintPage - 1, $hintPage + 1] as $page) {
+            foreach ($candidatePages as $page) {
                 if ($page < 1) {
                     continue;
                 }
@@ -1663,7 +1743,7 @@ class TpSoftwareCatalogService implements CatalogProvider
         $title = preg_replace('/\\s*\\(.*?\\)\\s*/', ' ', $title) ?? $title;
         $title = preg_replace('/\\s*,\\s*.*$/', '', $title) ?? $title;
 
-        $firstChunk = preg_split('/\\s*[-–—|\\/]+\\s*/u', $title)[0] ?? $title;
+        $firstChunk = preg_split('/\\s*(?:\\p{Pd}|\\||\\/)+\\s*/u', $title)[0] ?? $title;
         $firstChunk = trim($firstChunk);
 
         if ($firstChunk === '') {
@@ -1687,7 +1767,12 @@ class TpSoftwareCatalogService implements CatalogProvider
 
         $picked = array_slice($words, 0, min($take, count($words)));
 
-        return trim(implode(' ', $picked));
+        $result = trim(implode(' ', $picked));
+        if ($result === '') {
+            return '';
+        }
+
+        return mb_convert_case(mb_strtolower($result, 'UTF-8'), MB_CASE_TITLE, 'UTF-8');
     }
 
     private function priceBucketKey(mixed $price): string
@@ -1749,3 +1834,4 @@ class TpSoftwareCatalogService implements CatalogProvider
         ];
     }
 }
+

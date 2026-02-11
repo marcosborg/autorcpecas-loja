@@ -2,27 +2,28 @@
 
 namespace App\Filament\Pages;
 
+use App\Jobs\ReindexTpSoftware;
 use App\Services\Database\DatabaseCopier;
 use App\Services\Database\DbEnvironment;
-use App\Jobs\ReindexTpSoftware;
+use BackedEnum;
+use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use BackedEnum;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Carbon\CarbonImmutable;
+use Throwable;
 use UnitEnum;
 
 class Maintenance extends Page
 {
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-wrench-screwdriver';
 
-    protected static ?string $navigationLabel = 'Manutenção';
+    protected static ?string $navigationLabel = 'Manutencao';
 
     protected static string|UnitEnum|null $navigationGroup = 'Sistema';
 
@@ -47,35 +48,19 @@ class Maintenance extends Page
                 ->icon('heroicon-o-link')
                 ->requiresConfirmation()
                 ->action(function (): void {
-                    try {
-                        $exit = Artisan::call('storage:link');
-                        $output = trim((string) Artisan::output());
-                    } catch (\Throwable $e) {
-                        Notification::make()
-                            ->title('Falha a criar storage link')
-                            ->body($e->getMessage())
-                            ->danger()
-                            ->send();
-
-                        return;
-                    }
-
-                    $this->lastOutput = $output !== '' ? $output : "Exit code: {$exit}";
-                    $this->refreshDbStatus();
-
-                    Notification::make()
-                        ->title('Storage link executado')
-                        ->body(Str::limit($this->lastOutput, 240))
-                        ->success()
-                        ->send();
+                    $this->runArtisanCommand(
+                        titleOnSuccess: 'Storage link executado',
+                        titleOnFail: 'Falha a criar storage link',
+                        command: 'storage:link',
+                    );
                 }),
 
             Action::make('tpsoftwareIndex')
-                ->label('Reindexar TP Software')
+                ->label('Reindexar TP Software (fila)')
                 ->icon('heroicon-o-arrow-path')
                 ->form([
                     Toggle::make('force')
-                        ->label('Forçar rebuild do índice')
+                        ->label('Forcar rebuild do indice')
                         ->default(false),
                 ])
                 ->requiresConfirmation()
@@ -96,7 +81,7 @@ class Maintenance extends Page
                     $this->lastOutput = trim(implode("\n", [
                         'Reindex enfileirado (background).',
                         'force: '.($force ? 'true' : 'false'),
-                        'Se nao estiver a correr, inicia o worker: php artisan queue:work',
+                        'Usa os botoes de fila para processar jobs sem terminal.',
                     ]));
                     $this->refreshDbStatus();
 
@@ -105,34 +90,94 @@ class Maintenance extends Page
                         ->body(Str::limit($this->lastOutput, 240))
                         ->color('info')
                         ->send();
+                }),
 
-                    return;
-
+            Action::make('tpsoftwareIndexNow')
+                ->label('Reindexar TP (agora)')
+                ->icon('heroicon-o-bolt')
+                ->color('info')
+                ->form([
+                    Toggle::make('force')
+                        ->label('Forcar rebuild do indice')
+                        ->default(true),
+                ])
+                ->requiresConfirmation()
+                ->action(function (array $data): void {
                     $args = [];
                     if (($data['force'] ?? false) === true) {
                         $args['--force'] = true;
                     }
 
-                    try {
-                        $exit = Artisan::call('tpsoftware:index', $args);
-                        $output = trim((string) Artisan::output());
-                    } catch (\Throwable $e) {
-                        Notification::make()
-                            ->title('Falha a reindexar TP Software')
-                            ->body($e->getMessage())
-                            ->danger()
-                            ->send();
+                    $this->runArtisanCommand(
+                        titleOnSuccess: 'Reindex TP Software concluido',
+                        titleOnFail: 'Falha a reindexar TP Software',
+                        command: 'tpsoftware:index',
+                        arguments: $args,
+                    );
+                }),
 
-                        return;
+            Action::make('queueWorkOnce')
+                ->label('Processar 1 job')
+                ->icon('heroicon-o-play')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->action(function (): void {
+                    $this->runArtisanCommand(
+                        titleOnSuccess: 'Fila processada (1 job)',
+                        titleOnFail: 'Falha ao processar fila',
+                        command: 'queue:work',
+                        arguments: [
+                            '--once' => true,
+                            '--queue' => 'default',
+                            '--tries' => 1,
+                            '--timeout' => 120,
+                        ],
+                    );
+                }),
+
+            Action::make('queueWorkDrain')
+                ->label('Esvaziar fila')
+                ->icon('heroicon-o-forward')
+                ->color('warning')
+                ->requiresConfirmation()
+                ->action(function (): void {
+                    $this->runArtisanCommand(
+                        titleOnSuccess: 'Fila processada ate ficar vazia',
+                        titleOnFail: 'Falha ao esvaziar fila',
+                        command: 'queue:work',
+                        arguments: [
+                            '--stop-when-empty' => true,
+                            '--queue' => 'default',
+                            '--tries' => 1,
+                            '--timeout' => 120,
+                        ],
+                    );
+                }),
+
+            Action::make('clearAppCaches')
+                ->label('Limpar caches')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->action(function (): void {
+                    $outputs = [];
+                    foreach (['optimize:clear', 'cache:clear', 'config:clear'] as $cmd) {
+                        try {
+                            $exit = Artisan::call($cmd);
+                            $out = trim((string) Artisan::output());
+                            $outputs[] = "== {$cmd} (exit {$exit}) ==\n".($out !== '' ? $out : 'sem output');
+                        } catch (Throwable $e) {
+                            $outputs[] = "== {$cmd} ==\nERRO: ".$e->getMessage();
+                        }
                     }
 
-                    $this->lastOutput = $output !== '' ? $output : "Exit code: {$exit}";
+                    $this->lastOutput = implode("\n\n", $outputs);
                     $this->refreshDbStatus();
 
                     Notification::make()
-                        ->title($exit === 0 ? 'Índice TP Software atualizado' : 'Comando executado com erros')
+                        ->title('Caches limpas')
                         ->body(Str::limit($this->lastOutput, 240))
-                        ->color($exit === 0 ? 'success' : 'warning')
+                        ->success()
                         ->send();
                 }),
 
@@ -178,7 +223,7 @@ class Maintenance extends Page
                 }),
 
             Action::make('dbCopyProductionToSandbox')
-                ->label('Copiar Production → Sandbox')
+                ->label('Copiar Production -> Sandbox')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
                 ->form([
@@ -190,23 +235,18 @@ class Maintenance extends Page
                         ->helperText('Ex.: logs,audit_trails')
                         ->default(''),
                     TextInput::make('confirm')
-                        ->label('Confirmação')
+                        ->label('Confirmacao')
                         ->helperText('Escreve COPIAR para confirmar.')
                         ->required(),
                 ])
                 ->requiresConfirmation()
                 ->action(function (array $data): void {
                     if (strtoupper(trim((string) ($data['confirm'] ?? ''))) !== 'COPIAR') {
-                        Notification::make()
-                            ->title('Confirmação inválida')
-                            ->danger()
-                            ->send();
-
+                        Notification::make()->title('Confirmacao invalida')->danger()->send();
                         return;
                     }
 
                     $exclude = array_values(array_filter(array_map('trim', explode(',', (string) ($data['exclude_tables'] ?? '')))));
-                    // Prevent CSRF/session invalidation during interactive admin copy.
                     $exclude = array_values(array_unique([...$exclude, 'sessions']));
 
                     $copier = app(DatabaseCopier::class);
@@ -216,15 +256,11 @@ class Maintenance extends Page
                     ]);
                     $this->refreshDbStatus();
 
-                    Notification::make()
-                        ->title('Cópia concluída')
-                        ->body('Production → Sandbox')
-                        ->success()
-                        ->send();
+                    Notification::make()->title('Copia concluida')->body('Production -> Sandbox')->success()->send();
                 }),
 
             Action::make('dbCopySandboxToProduction')
-                ->label('Copiar Sandbox → Production')
+                ->label('Copiar Sandbox -> Production')
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('danger')
                 ->form([
@@ -236,33 +272,27 @@ class Maintenance extends Page
                         ->helperText('Ex.: logs,audit_trails')
                         ->default(''),
                     TextInput::make('confirm')
-                        ->label('Confirmação')
+                        ->label('Confirmacao')
                         ->helperText('Escreve COPIAR-PRODUCTION para confirmar.')
                         ->required(),
                 ])
                 ->requiresConfirmation()
                 ->action(function (array $data): void {
                     if (strtoupper(trim((string) ($data['confirm'] ?? ''))) !== 'COPIAR-PRODUCTION') {
-                        Notification::make()
-                            ->title('Confirmação inválida')
-                            ->danger()
-                            ->send();
-
+                        Notification::make()->title('Confirmacao invalida')->danger()->send();
                         return;
                     }
 
                     if (! (bool) env('DB_ALLOW_PRODUCTION_COPY', false)) {
                         Notification::make()
-                            ->title('Bloqueado por segurança')
-                            ->body('Define DB_ALLOW_PRODUCTION_COPY=true no .env para permitir Sandbox → Production.')
+                            ->title('Bloqueado por seguranca')
+                            ->body('Define DB_ALLOW_PRODUCTION_COPY=true no .env para permitir Sandbox -> Production.')
                             ->danger()
                             ->send();
-
                         return;
                     }
 
                     $exclude = array_values(array_filter(array_map('trim', explode(',', (string) ($data['exclude_tables'] ?? '')))));
-                    // Prevent CSRF/session invalidation during interactive admin copy.
                     $exclude = array_values(array_unique([...$exclude, 'sessions']));
 
                     $copier = app(DatabaseCopier::class);
@@ -272,11 +302,7 @@ class Maintenance extends Page
                     ]);
                     $this->refreshDbStatus();
 
-                    Notification::make()
-                        ->title('Cópia concluída')
-                        ->body('Sandbox → Production')
-                        ->success()
-                        ->send();
+                    Notification::make()->title('Copia concluida')->body('Sandbox -> Production')->success()->send();
                 }),
         ];
     }
@@ -294,6 +320,7 @@ class Maintenance extends Page
             'sandbox' => $this->connectionSummary('sandbox'),
             'production' => $this->connectionSummary('production'),
             'tpsoftware_index' => $tpsoftwareIndex,
+            'queue' => $this->queueSummary(),
         ];
     }
 
@@ -372,11 +399,45 @@ class Maintenance extends Page
             $status['stalled_warning'] = 'Index em running ha '.$runningSince.' min. Verifica se o worker da queue esta ativo.';
         }
 
+        $queuedSince = $this->minutesSince((string) ($status['queued_at'] ?? ''));
+        if ($raw === 'queued' && $queuedSince !== null && $queuedSince >= 2) {
+            $status['stalled_warning'] = 'Index em fila ha '.$queuedSince.' min. Processa a fila nos botoes acima.';
+        }
+
         $status['status'] = $raw;
         $status['status_label'] = $label;
         $status['status_tone'] = $tone;
 
         return $status;
+    }
+
+    /**
+     * @return array{pending:int, failed:int, connection:string, warning?:string|null}
+     */
+    private function queueSummary(): array
+    {
+        $connection = (string) config('database.default', 'n/a');
+        $pending = 0;
+        $failed = 0;
+        $warning = null;
+
+        try {
+            if (DB::getSchemaBuilder()->hasTable('jobs')) {
+                $pending = (int) DB::table('jobs')->count();
+            }
+            if (DB::getSchemaBuilder()->hasTable('failed_jobs')) {
+                $failed = (int) DB::table('failed_jobs')->count();
+            }
+        } catch (Throwable $e) {
+            $warning = $e->getMessage();
+        }
+
+        return [
+            'pending' => $pending,
+            'failed' => $failed,
+            'connection' => $connection,
+            'warning' => $warning,
+        ];
     }
 
     private function minutesSince(string $iso): ?int
@@ -388,10 +449,33 @@ class Maintenance extends Page
 
         try {
             $from = CarbonImmutable::parse($iso);
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return null;
         }
 
         return $from->diffInMinutes(now(), false);
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function runArtisanCommand(string $titleOnSuccess, string $titleOnFail, string $command, array $arguments = []): void
+    {
+        try {
+            $exit = Artisan::call($command, $arguments);
+            $output = trim((string) Artisan::output());
+        } catch (Throwable $e) {
+            Notification::make()->title($titleOnFail)->body($e->getMessage())->danger()->send();
+            return;
+        }
+
+        $this->lastOutput = "== {$command} ==\n".($output !== '' ? $output : "Exit code: {$exit}");
+        $this->refreshDbStatus();
+
+        Notification::make()
+            ->title($exit === 0 ? $titleOnSuccess : $titleOnFail)
+            ->body(Str::limit($this->lastOutput, 240))
+            ->color($exit === 0 ? 'success' : 'warning')
+            ->send();
     }
 }

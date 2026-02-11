@@ -65,7 +65,7 @@
 
                 @if (!empty($facets['piece_categories'] ?? []))
                     <div class="card mt-3">
-                        <div class="card-header fw-semibold">Categoria da peÃ§a</div>
+                    <div class="card-header fw-semibold">Categoria da peça</div>
                         <div class="card-body">
                             <select id="pieceCategorySelect" class="form-select store-filter-select">
                                 <option value="{{ $facets['piece_categories_all_url'] ?? url('/loja/categorias/'.$selectedCategorySlug) }}" @if(empty($selectedPiece ?? '')) selected @endif>Todos</option>

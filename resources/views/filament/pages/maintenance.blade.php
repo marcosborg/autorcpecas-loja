@@ -43,6 +43,20 @@
                 Nota: os botoes de copia recriam as tabelas no destino (DROP/CREATE) e depois copiam dados.
             </div>
         </div>
+        @if (!empty($dbStatus['queue'] ?? null))
+            @php($q = $dbStatus['queue'])
+            <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
+                <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Fila (queue)</div>
+                <div class="text-sm text-gray-700 dark:text-gray-200">
+                    <div><span class="font-semibold">Connection:</span> {{ $q['connection'] ?? 'n/a' }}</div>
+                    <div><span class="font-semibold">Jobs pendentes:</span> {{ $q['pending'] ?? 0 }}</div>
+                    <div><span class="font-semibold">Jobs falhados:</span> {{ $q['failed'] ?? 0 }}</div>
+                    @if (!empty($q['warning'] ?? null))
+                        <div class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $q['warning'] }}</div>
+                    @endif
+                </div>
+            </div>
+        @endif
         @if (!empty($dbStatus['tpsoftware_index'] ?? null))
             @php($idx = $dbStatus['tpsoftware_index'])
             <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
