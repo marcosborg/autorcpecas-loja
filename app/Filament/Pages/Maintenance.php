@@ -196,6 +196,8 @@ class Maintenance extends Page
                     }
 
                     $exclude = array_values(array_filter(array_map('trim', explode(',', (string) ($data['exclude_tables'] ?? '')))));
+                    // Prevent CSRF/session invalidation during interactive admin copy.
+                    $exclude = array_values(array_unique([...$exclude, 'sessions']));
 
                     $copier = app(DatabaseCopier::class);
                     $this->lastOutput = $copier->copy('production', 'sandbox', [
@@ -250,6 +252,8 @@ class Maintenance extends Page
                     }
 
                     $exclude = array_values(array_filter(array_map('trim', explode(',', (string) ($data['exclude_tables'] ?? '')))));
+                    // Prevent CSRF/session invalidation during interactive admin copy.
+                    $exclude = array_values(array_unique([...$exclude, 'sessions']));
 
                     $copier = app(DatabaseCopier::class);
                     $this->lastOutput = $copier->copy('sandbox', 'production', [

@@ -6,6 +6,7 @@ use App\Models\PaymentMethod;
 use App\Models\ShippingCarrier;
 use App\Models\ShippingRate;
 use App\Models\ShippingZone;
+use App\Models\ShippingZoneCountry;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use PDO;
@@ -14,16 +15,23 @@ class ImportPrestashopCommerceCommand extends Command
 {
     protected $signature = 'prestashop:import-commerce
         {--parameters=C:\Users\sara.borges\Desktop\autorcpecasprestahop\app\config\parameters.php : Caminho do parameters.php}
+        {--host= : Override host da BD PrestaShop}
+        {--port= : Override porto da BD PrestaShop}
+        {--dbname= : Override nome da BD PrestaShop}
+        {--user= : Override utilizador da BD PrestaShop}
+        {--password= : Override password da BD PrestaShop}
+        {--prefix= : Override prefixo de tabelas (ex: ps_)}
+        {--target-database=sandbox : Ligacao Laravel de destino (sandbox|production)}
+        {--shipping-only : Importa apenas transportadoras/zonas/tarifas}
         {--truncate : Limpa tabelas de shipping/payment antes de importar}';
 
-    protected $description = 'Importa transportadoras e módulos de pagamento de uma base PrestaShop para o modelo interno';
+    protected $description = 'Importa transportadoras e modulos de pagamento da base PrestaShop';
 
     public function handle(): int
     {
         $parametersPath = (string) $this->option('parameters');
-
         if (! is_file($parametersPath)) {
-            $this->error("Ficheiro não encontrado: {$parametersPath}");
+            $this->error("Ficheiro nao encontrado: {$parametersPath}");
 
             return self::FAILURE;
         }
@@ -32,15 +40,17 @@ class ImportPrestashopCommerceCommand extends Command
         $cfg = include $parametersPath;
         $params = (array) ($cfg['parameters'] ?? []);
 
-        $host = (string) ($params['database_host'] ?? '127.0.0.1');
-        $port = (string) ($params['database_port'] ?? '3306');
-        $db = (string) ($params['database_name'] ?? '');
-        $user = (string) ($params['database_user'] ?? '');
-        $pass = (string) ($params['database_password'] ?? '');
-        $prefix = (string) ($params['database_prefix'] ?? 'ps_');
+        $host = (string) ($this->option('host') ?: ($params['database_host'] ?? '127.0.0.1'));
+        $port = (string) ($this->option('port') ?: (($params['database_port'] ?? '') ?: '3306'));
+        $db = (string) ($this->option('dbname') ?: ($params['database_name'] ?? ''));
+        $user = (string) ($this->option('user') ?: ($params['database_user'] ?? ''));
+        $pass = (string) ($this->option('password') ?: ($params['database_password'] ?? ''));
+        $prefix = (string) ($this->option('prefix') ?: ($params['database_prefix'] ?? 'ps_'));
+        $targetDatabase = (string) ($this->option('target-database') ?: 'sandbox');
+        $shippingOnly = (bool) $this->option('shipping-only');
 
         if ($db === '' || $user === '') {
-            $this->error('Configuração de BD inválida no parameters.php');
+            $this->error('Configuracao de BD invalida no parameters.php');
 
             return self::FAILURE;
         }
@@ -50,27 +60,39 @@ class ImportPrestashopCommerceCommand extends Command
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             ]);
         } catch (\Throwable $e) {
-            $this->error('Falha ao ligar à BD PrestaShop: '.$e->getMessage());
+            $this->error('Falha ao ligar a BD PrestaShop: '.$e->getMessage());
 
             return self::FAILURE;
         }
 
         if ((bool) $this->option('truncate')) {
-            DB::transaction(function (): void {
-                DB::table('payment_method_shipping_carrier')->delete();
-                DB::table('shipping_rates')->delete();
-                DB::table('shipping_zone_countries')->delete();
-                DB::table('payment_methods')->delete();
-                DB::table('shipping_carriers')->delete();
-                DB::table('shipping_zones')->delete();
+            DB::connection($targetDatabase)->transaction(function () use ($targetDatabase, $shippingOnly): void {
+                $target = DB::connection($targetDatabase);
+
+                if (! $shippingOnly) {
+                    $target->table('payment_method_shipping_carrier')->delete();
+                }
+
+                $target->table('shipping_rates')->delete();
+                $target->table('shipping_zone_countries')->delete();
+
+                if (! $shippingOnly) {
+                    $target->table('payment_methods')->delete();
+                }
+
+                $target->table('shipping_carriers')->delete();
+                $target->table('shipping_zones')->delete();
             });
         }
 
-        $zoneMap = $this->importZones($pdo, $prefix);
-        $carrierMap = $this->importCarriersAndRates($pdo, $prefix, $zoneMap);
-        $this->importPaymentMethods($pdo, $prefix, $carrierMap);
+        $zoneMap = $this->importZones($pdo, $prefix, $targetDatabase);
+        $carrierMap = $this->importCarriersAndRates($pdo, $prefix, $zoneMap, $targetDatabase);
 
-        $this->info('Importação concluída.');
+        if (! $shippingOnly) {
+            $this->importPaymentMethods($pdo, $prefix, $carrierMap, $targetDatabase);
+        }
+
+        $this->info('Importacao concluida.');
 
         return self::SUCCESS;
     }
@@ -78,7 +100,7 @@ class ImportPrestashopCommerceCommand extends Command
     /**
      * @return array<int, int> [ps_zone_id => local_zone_id]
      */
-    private function importZones(PDO $pdo, string $prefix): array
+    private function importZones(PDO $pdo, string $prefix, string $targetDatabase): array
     {
         $zoneRows = $pdo->query("SELECT id_zone, name, active FROM `{$prefix}zone`")->fetchAll(PDO::FETCH_ASSOC) ?: [];
         $map = [];
@@ -89,7 +111,7 @@ class ImportPrestashopCommerceCommand extends Command
                 continue;
             }
 
-            $zone = ShippingZone::query()->updateOrCreate(
+            $zone = ShippingZone::on($targetDatabase)->updateOrCreate(
                 ['code' => 'PS_ZONE_'.$psId],
                 [
                     'name' => (string) ($z['name'] ?? 'Zona '.$psId),
@@ -101,6 +123,20 @@ class ImportPrestashopCommerceCommand extends Command
             $map[$psId] = (int) $zone->id;
         }
 
+        $countries = $pdo->query("SELECT iso_code, id_zone FROM `{$prefix}country`")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($countries as $country) {
+            $psZoneId = (int) ($country['id_zone'] ?? 0);
+            $iso = mb_strtoupper(trim((string) ($country['iso_code'] ?? '')), 'UTF-8');
+            if ($iso === '' || ! isset($map[$psZoneId])) {
+                continue;
+            }
+
+            ShippingZoneCountry::on($targetDatabase)->updateOrCreate([
+                'shipping_zone_id' => $map[$psZoneId],
+                'country_iso2' => $iso,
+            ]);
+        }
+
         return $map;
     }
 
@@ -108,9 +144,12 @@ class ImportPrestashopCommerceCommand extends Command
      * @param  array<int, int>  $zoneMap
      * @return array<int, int> [ps_carrier_id => local_carrier_id]
      */
-    private function importCarriersAndRates(PDO $pdo, string $prefix, array $zoneMap): array
+    private function importCarriersAndRates(PDO $pdo, string $prefix, array $zoneMap, string $targetDatabase): array
     {
-        $carrierRows = $pdo->query("SELECT id_carrier, name, active, deleted, shipping_method FROM `{$prefix}carrier`")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $carrierRows = $pdo->query(
+            "SELECT id_carrier, name, active, deleted, shipping_method, is_free, need_range, range_behavior
+             FROM `{$prefix}carrier`"
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
         $carrierMap = [];
 
         foreach ($carrierRows as $c) {
@@ -129,13 +168,19 @@ class ImportPrestashopCommerceCommand extends Command
             }
 
             $rateBasis = ((int) ($c['shipping_method'] ?? 1) === 2) ? 'price' : 'weight';
+            $isFree = (bool) ((int) ($c['is_free'] ?? 0));
+            $needRange = (bool) ((int) ($c['need_range'] ?? 1));
 
-            $carrier = ShippingCarrier::query()->updateOrCreate(
+            $carrier = ShippingCarrier::on($targetDatabase)->updateOrCreate(
                 ['code' => 'PS_CARRIER_'.$psId],
                 [
                     'name' => (string) ($c['name'] ?? 'Carrier '.$psId),
                     'rate_basis' => $rateBasis,
                     'transit_delay' => $delay,
+                    'is_free' => $isFree,
+                    'need_range' => $needRange,
+                    'range_behavior' => (int) ($c['range_behavior'] ?? 1),
+                    'is_pickup' => $isFree,
                     'active' => (bool) ((int) ($c['active'] ?? 1)),
                     'position' => $psId,
                 ]
@@ -144,7 +189,10 @@ class ImportPrestashopCommerceCommand extends Command
             $carrierMap[$psId] = (int) $carrier->id;
         }
 
-        $deliveryRows = $pdo->query("SELECT id_carrier, id_zone, id_range_price, id_range_weight, price FROM `{$prefix}delivery`")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $deliveryRows = $pdo->query(
+            "SELECT id_carrier, id_zone, id_range_price, id_range_weight, price
+             FROM `{$prefix}delivery`"
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         foreach ($deliveryRows as $d) {
             $psCarrierId = (int) ($d['id_carrier'] ?? 0);
@@ -169,7 +217,7 @@ class ImportPrestashopCommerceCommand extends Command
                 [$rangeFrom, $rangeTo] = $this->fetchRange($pdo, "{$prefix}range_price", $rangePriceId);
             }
 
-            ShippingRate::query()->updateOrCreate(
+            ShippingRate::on($targetDatabase)->updateOrCreate(
                 [
                     'shipping_carrier_id' => $carrierMap[$psCarrierId],
                     'shipping_zone_id' => $zoneMap[$psZoneId],
@@ -185,13 +233,42 @@ class ImportPrestashopCommerceCommand extends Command
             );
         }
 
+        $carrierZoneRows = $pdo->query("SELECT id_carrier, id_zone FROM `{$prefix}carrier_zone`")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($carrierZoneRows as $carrierZone) {
+            $psCarrierId = (int) ($carrierZone['id_carrier'] ?? 0);
+            $psZoneId = (int) ($carrierZone['id_zone'] ?? 0);
+            if (! isset($carrierMap[$psCarrierId], $zoneMap[$psZoneId])) {
+                continue;
+            }
+
+            $carrier = ShippingCarrier::on($targetDatabase)->find($carrierMap[$psCarrierId]);
+            if (! $carrier || ! $carrier->is_free || $carrier->need_range) {
+                continue;
+            }
+
+            ShippingRate::on($targetDatabase)->updateOrCreate(
+                [
+                    'shipping_carrier_id' => $carrier->id,
+                    'shipping_zone_id' => $zoneMap[$psZoneId],
+                    'calc_type' => $carrier->rate_basis,
+                    'range_from' => 0,
+                    'range_to' => null,
+                ],
+                [
+                    'price_ex_vat' => 0,
+                    'handling_fee_ex_vat' => 0,
+                    'active' => true,
+                ]
+            );
+        }
+
         return $carrierMap;
     }
 
     /**
      * @param  array<int, int>  $carrierMap
      */
-    private function importPaymentMethods(PDO $pdo, string $prefix, array $carrierMap): void
+    private function importPaymentMethods(PDO $pdo, string $prefix, array $carrierMap, string $targetDatabase): void
     {
         $moduleRows = $pdo->query("SELECT id_module, name, active FROM `{$prefix}module`")->fetchAll(PDO::FETCH_ASSOC) ?: [];
         $paymentLike = static fn (string $name): bool => (bool) preg_match('/(pay|checkout|bank|wire|mbway|multibanco|card|stripe|paypal)/i', $name);
@@ -204,7 +281,7 @@ class ImportPrestashopCommerceCommand extends Command
                 continue;
             }
 
-            $method = PaymentMethod::query()->updateOrCreate(
+            $method = PaymentMethod::on($targetDatabase)->updateOrCreate(
                 ['code' => 'PS_MODULE_'.$name],
                 [
                     'name' => ucwords(str_replace(['_', '-'], ' ', $name)),
@@ -256,3 +333,4 @@ class ImportPrestashopCommerceCommand extends Command
         return [$from, $to];
     }
 }
+

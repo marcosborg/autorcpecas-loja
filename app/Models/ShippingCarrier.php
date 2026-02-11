@@ -18,6 +18,9 @@ class ShippingCarrier extends Model
         'transit_delay',
         'free_shipping_over_ex_vat',
         'is_pickup',
+        'need_range',
+        'range_behavior',
+        'is_free',
         'active',
         'position',
     ];
@@ -25,6 +28,9 @@ class ShippingCarrier extends Model
     protected $casts = [
         'free_shipping_over_ex_vat' => 'float',
         'is_pickup' => 'boolean',
+        'need_range' => 'boolean',
+        'range_behavior' => 'integer',
+        'is_free' => 'boolean',
         'active' => 'boolean',
         'position' => 'integer',
     ];
@@ -39,4 +45,3 @@ class ShippingCarrier extends Model
         return $this->belongsToMany(PaymentMethod::class, 'payment_method_shipping_carrier');
     }
 }
-

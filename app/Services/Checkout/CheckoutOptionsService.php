@@ -99,6 +99,26 @@ class CheckoutOptionsService
                     return $to === null || $subject <= (float) $to;
                 });
 
+            if (! $rate && (bool) $carrier->is_free && ! (bool) $carrier->need_range) {
+                $out[] = [
+                    'id' => $carrier->id,
+                    'code' => $carrier->code,
+                    'name' => $carrier->name,
+                    'delay' => $carrier->transit_delay,
+                    'is_pickup' => (bool) $carrier->is_pickup,
+                    'price_ex_vat' => 0.0,
+                    'basis' => $basis,
+                ];
+                continue;
+            }
+
+            if (! $rate && (int) $carrier->range_behavior === 0) {
+                $rate = $carrier->rates
+                    ->where('calc_type', $basis)
+                    ->sortBy('range_to')
+                    ->last();
+            }
+
             if (! $rate) {
                 continue;
             }
@@ -164,4 +184,3 @@ class CheckoutOptionsService
         return $out;
     }
 }
-
