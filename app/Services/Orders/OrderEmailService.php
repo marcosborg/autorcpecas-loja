@@ -28,13 +28,13 @@ class OrderEmailService
             'highlight' => 'Estado atual: '.OrderStatuses::label((string) $order->status),
             'button_label' => 'Acompanhar encomenda',
             'button_url' => url('/loja/conta/encomendas/'.$order->id),
-            'rows' => [
+            'rows' => array_merge([
                 ['label' => 'Encomenda', 'value' => (string) $order->order_number],
                 ['label' => 'Estado', 'value' => OrderStatuses::label((string) $order->status)],
                 ['label' => 'Pagamento', 'value' => $paymentMethod !== '' ? $paymentMethod : '-'],
                 ['label' => 'Transporte', 'value' => $shippingMethod !== '' ? $shippingMethod : '-'],
                 ['label' => 'Total c/ IVA', 'value' => number_format((float) $order->total_inc_vat, 2, ',', ' ').' '.$order->currency],
-            ],
+            ], $this->multibancoRows($order)),
         ];
 
         $this->deliver($email, $order, $context);
@@ -113,5 +113,40 @@ class OrderEmailService
             report($e);
         }
     }
-}
 
+    /**
+     * @return list<array{label: string, value: string}>
+     */
+    private function multibancoRows(Order $order): array
+    {
+        $snapshot = is_array($order->payment_method_snapshot) ? $order->payment_method_snapshot : [];
+        if ((string) ($snapshot['code'] ?? '') !== 'sibs_multibanco') {
+            return [];
+        }
+
+        $instructions = is_array($snapshot['payment_instructions'] ?? null) ? $snapshot['payment_instructions'] : [];
+        if ($instructions === []) {
+            return [];
+        }
+
+        $amount = (float) ($instructions['amount'] ?? $order->total_inc_vat);
+        $currency = trim((string) ($instructions['currency'] ?? $order->currency));
+        $entity = trim((string) ($instructions['entity'] ?? ''));
+        $reference = trim((string) ($instructions['reference_display'] ?? ($instructions['reference'] ?? '')));
+
+        $rows = [];
+        if ($entity !== '') {
+            $rows[] = ['label' => 'Entidade MB', 'value' => $entity];
+        }
+        if ($reference !== '') {
+            $rows[] = ['label' => 'Referencia MB', 'value' => $reference];
+        }
+
+        $rows[] = [
+            'label' => 'Montante MB',
+            'value' => number_format($amount, 2, ',', ' ').' '.($currency !== '' ? $currency : 'EUR'),
+        ];
+
+        return $rows;
+    }
+}

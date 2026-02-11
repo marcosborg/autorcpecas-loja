@@ -114,6 +114,12 @@ class StoreCheckoutService
             ]);
 
             $order->order_number = sprintf('ORC-%s-%06d', now()->format('Ymd'), $order->id);
+            $order->payment_method_snapshot = $this->decoratePaymentSnapshot(
+                $payment,
+                $order->order_number,
+                (float) $totalIncVat,
+                (string) $order->currency,
+            );
             $order->save();
 
             foreach ($cart->items as $item) {
@@ -145,5 +151,104 @@ class StoreCheckoutService
         $this->orderEmails->sendOrderCreated($order);
 
         return $order;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function paymentMethodsForOrder(Order $order): array
+    {
+        $shippingAddress = (array) ($order->shipping_address_snapshot ?? []);
+        $countryIso2 = trim((string) ($shippingAddress['country_iso2'] ?? 'PT'));
+        $weightKg = (float) $order->items->sum(fn (OrderItem $item): float => (float) $item->weight_kg * (int) $item->quantity);
+
+        $quote = $this->checkoutOptions->quote(
+            (float) $order->subtotal_ex_vat,
+            $weightKg,
+            $countryIso2 !== '' ? $countryIso2 : 'PT',
+        );
+
+        return array_values(array_filter(
+            (array) ($quote['payment_methods'] ?? []),
+            fn ($m): bool => is_array($m)
+        ));
+    }
+
+    public function changeOrderPaymentMethod(Order $order, int $paymentMethodId, ?int $actorUserId = null): Order
+    {
+        if ((string) $order->status !== 'awaiting_payment') {
+            throw new \RuntimeException('So e possivel alterar metodo de pagamento em encomendas por pagar.');
+        }
+
+        $methods = $this->paymentMethodsForOrder($order);
+        $newPayment = collect($methods)->first(fn ($p) => (int) ($p['id'] ?? 0) === $paymentMethodId);
+        if (! is_array($newPayment)) {
+            throw new \RuntimeException('Metodo de pagamento invalido para esta encomenda.');
+        }
+
+        $oldPayment = (array) ($order->payment_method_snapshot ?? []);
+        $oldName = trim((string) ($oldPayment['name'] ?? '-'));
+        $newName = trim((string) ($newPayment['name'] ?? '-'));
+
+        $paymentFee = (float) ($newPayment['fee_ex_vat'] ?? 0);
+        $totalExVat = (float) $order->subtotal_ex_vat + (float) $order->shipping_ex_vat + $paymentFee;
+        $vatRate = (float) $order->vat_rate;
+        $totalIncVat = round($totalExVat * (1 + ($vatRate / 100)), 2);
+
+        $snapshot = $this->decoratePaymentSnapshot(
+            $newPayment,
+            (string) $order->order_number,
+            $totalIncVat,
+            (string) $order->currency,
+        );
+
+        DB::transaction(function () use ($order, $paymentFee, $totalExVat, $totalIncVat, $snapshot, $oldName, $newName, $actorUserId): void {
+            $order->payment_fee_ex_vat = round($paymentFee, 2);
+            $order->total_ex_vat = round($totalExVat, 2);
+            $order->total_inc_vat = round($totalIncVat, 2);
+            $order->payment_method_snapshot = $snapshot;
+            $order->save();
+
+            OrderStatusHistory::query()->create([
+                'order_id' => $order->id,
+                'status' => (string) $order->status,
+                'note' => 'Metodo de pagamento alterado: '.$oldName.' -> '.$newName.'.',
+                'created_by_user_id' => $actorUserId,
+            ]);
+        });
+
+        return $order->fresh(['items', 'statusHistory']);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payment
+     * @return array<string, mixed>
+     */
+    private function decoratePaymentSnapshot(array $payment, string $orderNumber, float $amount, string $currency): array
+    {
+        if ((string) ($payment['code'] ?? '') !== 'sibs_multibanco') {
+            return $payment;
+        }
+
+        $meta = is_array($payment['meta'] ?? null) ? $payment['meta'] : [];
+        $entity = preg_replace('/\D+/', '', (string) ($meta['payment_entity'] ?? ''));
+        $entity = is_string($entity) ? trim($entity) : '';
+        $paymentType = trim((string) ($meta['payment_type'] ?? ''));
+
+        // Generates a deterministic 9-digit reference per order.
+        $seed = abs(crc32('mb|'.$orderNumber));
+        $referenceDigits = str_pad((string) ($seed % 1000000000), 9, '0', STR_PAD_LEFT);
+        $referenceDisplay = substr($referenceDigits, 0, 3).' '.substr($referenceDigits, 3, 3).' '.substr($referenceDigits, 6, 3);
+
+        $payment['payment_instructions'] = [
+            'entity' => $entity,
+            'payment_type' => $paymentType,
+            'reference' => $referenceDigits,
+            'reference_display' => $referenceDisplay,
+            'amount' => round($amount, 2),
+            'currency' => $currency !== '' ? $currency : 'EUR',
+        ];
+
+        return $payment;
     }
 }
