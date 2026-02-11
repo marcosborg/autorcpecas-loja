@@ -36,11 +36,11 @@ class ShippingZoneForm
                             ->label('ISO2')
                             ->required()
                             ->maxLength(2)
-                            ->uppercase(),
+                            ->formatStateUsing(fn (?string $state): string => strtoupper((string) $state))
+                            ->dehydrateStateUsing(fn (?string $state): string => strtoupper(trim((string) $state))),
                     ])
                     ->defaultItems(0)
                     ->columnSpanFull(),
             ]);
     }
 }
-
