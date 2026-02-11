@@ -6,10 +6,9 @@ use App\Http\Controllers\PageController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index']);
-Route::get('/sobre-nos', [PageController::class, 'about']);
 Route::get('/marcas', [PageController::class, 'brands']);
-Route::get('/contactos', [PageController::class, 'contacts']);
 Route::get('/pagina/{slug}', [CmsPageController::class, 'show'])->name('cms.page');
+Route::post('/pagina/{slug}/contacto', [CmsPageController::class, 'contact'])->name('cms.page.contact');
 
 Route::prefix('loja')->group(function () {
     Route::get('/', [\App\Http\Controllers\Store\StoreCategoryController::class, 'index']);

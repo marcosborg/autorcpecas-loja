@@ -15,6 +15,7 @@ class CmsMenuItemsTable
     {
         return $table
             ->defaultSort('sort_order')
+            ->reorderable('sort_order')
             ->columns([
                 TextColumn::make('label')
                     ->label('Texto')
@@ -54,4 +55,3 @@ class CmsMenuItemsTable
             ]);
     }
 }
-

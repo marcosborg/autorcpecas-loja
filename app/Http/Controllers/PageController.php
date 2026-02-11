@@ -7,16 +7,6 @@ use Illuminate\Database\QueryException;
 
 class PageController extends Controller
 {
-    public function about()
-    {
-        return view('pages.about');
-    }
-
-    public function contacts()
-    {
-        return view('pages.contacts');
-    }
-
     public function brands()
     {
         try {
@@ -34,4 +24,3 @@ class PageController extends Controller
         ]);
     }
 }
-

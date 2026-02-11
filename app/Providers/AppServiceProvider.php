@@ -86,9 +86,8 @@ class AppServiceProvider extends ServiceProvider
             if ($menuItems === []) {
                 $menuItems = [
                     ['label' => 'Inicio', 'href' => url('/'), 'open_in_new_tab' => false, 'is_button' => false, 'is_current' => request()->is('/')],
-                    ['label' => 'Sobre nos', 'href' => url('/sobre-nos'), 'open_in_new_tab' => false, 'is_button' => false, 'is_current' => request()->is('sobre-nos')],
+                    ['label' => 'Loja', 'href' => url('/loja'), 'open_in_new_tab' => false, 'is_button' => false, 'is_current' => request()->is('loja*')],
                     ['label' => 'Todas as marcas', 'href' => url('/marcas'), 'open_in_new_tab' => false, 'is_button' => false, 'is_current' => request()->is('marcas')],
-                    ['label' => 'Contactos', 'href' => url('/contactos'), 'open_in_new_tab' => false, 'is_button' => true, 'is_current' => request()->is('contactos')],
                 ];
             }
 

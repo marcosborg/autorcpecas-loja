@@ -314,10 +314,10 @@
 
                     <form class="search-form d-flex flex-grow-1 gap-2" action="{{ url('/loja/pesquisa') }}" method="get" role="search" data-autocomplete-url="{{ url('/loja/pesquisa/sugestoes') }}">
                         <div class="autocomplete-wrap flex-grow-1">
-                            <input class="form-control" type="search" name="q" value="{{ request('q') }}" placeholder="Procurar por referÃƒÂªncia" aria-label="Procurar por referÃƒÂªncia" autocomplete="off">
-                            <div class="autocomplete-menu" data-ref-suggestions role="listbox" aria-label="SugestÃƒÂµes de referÃƒÂªncia"></div>
+                            <input class="form-control" type="search" name="q" value="{{ request('q') }}" placeholder="Procurar por refer&ecirc;ncia" aria-label="Procurar por refer&ecirc;ncia" autocomplete="off">
+                            <div class="autocomplete-menu" data-ref-suggestions role="listbox" aria-label="Sugest&otilde;es de refer&ecirc;ncia"></div>
                         </div>
-                        <button class="btn btn-light px-3" type="submit" aria-label="Pesquisar referÃƒÂªncia">
+                        <button class="btn btn-light px-3" type="submit" aria-label="Pesquisar refer&ecirc;ncia">
                             Pesquisar
                         </button>
                     </form>
@@ -398,11 +398,18 @@
                     </ul>
                 </div>
                 <div class="col-12 col-md-4 col-lg-2">
-                    <div class="store-footer-subtitle">Empresa</div>
+                    <div class="store-footer-subtitle">Menu</div>
                     <ul class="store-footer-links">
-                        <li><a href="{{ url('/sobre-nos') }}">Sobre nos</a></li>
-                        <li><a href="{{ url('/contactos') }}">Contactos</a></li>
-                        <li><a href="{{ url('/marcas') }}">Todas as marcas</a></li>
+                        @foreach (($headerMenuItems ?? []) as $menuItem)
+                            <li>
+                                <a
+                                    href="{{ $menuItem['href'] ?? '#' }}"
+                                    @if(!empty($menuItem['open_in_new_tab'])) target="_blank" rel="noopener" @endif
+                                >
+                                    {{ $menuItem['label'] ?? '' }}
+                                </a>
+                            </li>
+                        @endforeach
                     </ul>
                 </div>
                 <div class="col-12 col-lg-3">
