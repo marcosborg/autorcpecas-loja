@@ -11,9 +11,6 @@ class SibsWebhookController extends Controller
 {
     public function __invoke(Request $request, SibsWebhookService $service): JsonResponse
     {
-        /** @var array<string, mixed> $payload */
-        $payload = $request->all();
-
         $providedSecret = (string) (
             $request->header('X-Webhook-Secret')
             ?? $request->input('webhook_secret')
@@ -21,13 +18,18 @@ class SibsWebhookController extends Controller
             ?? ''
         );
 
-        $result = $service->handle($payload, $providedSecret);
+        /** @var array<string, mixed> $headers */
+        $headers = $request->headers->all();
+        /** @var array<string, mixed> $fallbackPayload */
+        $fallbackPayload = $request->all();
 
-        return response()->json([
-            'ok' => $result['ok'],
-            'message' => $result['message'],
-            'order_id' => $result['order_id'] ?? null,
-        ], (int) $result['status']);
+        $result = $service->handleIncoming(
+            (string) $request->getContent(),
+            $headers,
+            $fallbackPayload,
+            $providedSecret,
+        );
+
+        return response()->json($result['response'], (int) $result['status']);
     }
 }
-
