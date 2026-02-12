@@ -4,11 +4,14 @@ namespace App\Observers;
 
 use App\Models\Order;
 use App\Services\Orders\OrderEmailService;
+use App\Services\TpSoftware\TpSoftwareSalesSyncService;
+use Illuminate\Support\Facades\Log;
 
 class OrderObserver
 {
     public function __construct(
         private readonly OrderEmailService $orderEmails,
+        private readonly TpSoftwareSalesSyncService $tpSoftwareSalesSync,
     ) {
     }
 
@@ -23,6 +26,9 @@ class OrderObserver
 
         if ($this->isPaymentStatus($current)) {
             $this->orderEmails->sendPaymentUpdated($order, $previous);
+            if ($current === 'paid') {
+                $this->syncTpSoftwareSale($order);
+            }
             return;
         }
 
@@ -37,5 +43,18 @@ class OrderObserver
             'refunded',
             'cancelled',
         ], true);
+    }
+
+    private function syncTpSoftwareSale(Order $order): void
+    {
+        try {
+            $this->tpSoftwareSalesSync->syncPaidOrder($order);
+        } catch (\Throwable $e) {
+            Log::warning('TP Software sync failed from OrderObserver', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

@@ -49,5 +49,9 @@ return [
         // Campo usado para "modelo" (filtro opcional)
         'model_field' => env('TPSOFTWARE_MODEL_FIELD', 'vehicle_model_name'),
     ],
+
+    'sales_sync' => [
+        'enabled' => env('TPSOFTWARE_SALES_SYNC_ENABLED', true),
+    ],
 ];
 

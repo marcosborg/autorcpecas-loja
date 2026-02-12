@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\PaymentMethod;
 use App\Services\Orders\OrderEmailService;
+use App\Services\TpSoftware\TpSoftwareSalesSyncService;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -13,6 +14,7 @@ class SibsWebhookService
 {
     public function __construct(
         private readonly OrderEmailService $orderEmails,
+        private readonly TpSoftwareSalesSyncService $tpSoftwareSalesSync,
     ) {
     }
 
@@ -172,6 +174,17 @@ class SibsWebhookService
 
         $order->refresh();
         $this->orderEmails->sendPaymentUpdated($order, $previousStatus);
+        if ($newStatus === 'paid') {
+            try {
+                $this->tpSoftwareSalesSync->syncPaidOrder($order);
+            } catch (Throwable $e) {
+                Log::warning('TP Software sync failed from SIBS webhook', [
+                    'order_id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         return [
             'ok' => true,
