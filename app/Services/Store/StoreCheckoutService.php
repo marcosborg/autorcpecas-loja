@@ -10,6 +10,7 @@ use App\Models\OrderStatusHistory;
 use App\Models\User;
 use App\Services\Checkout\CheckoutOptionsService;
 use App\Services\Orders\OrderEmailService;
+use App\Services\Payments\SibsCheckoutService;
 use Illuminate\Support\Facades\DB;
 
 class StoreCheckoutService
@@ -18,6 +19,7 @@ class StoreCheckoutService
         private readonly CartService $cartService,
         private readonly CheckoutOptionsService $checkoutOptions,
         private readonly OrderEmailService $orderEmails,
+        private readonly SibsCheckoutService $sibsCheckout,
     ) {
     }
 
@@ -218,6 +220,105 @@ class StoreCheckoutService
         });
 
         return $order->fresh(['items', 'statusHistory']);
+    }
+
+    public function syncOrderAddressesFromDefaults(Order $order, User $user, ?int $actorUserId = null): Order
+    {
+        if ((int) $order->user_id !== (int) $user->id) {
+            throw new \RuntimeException('Encomenda invalida para este utilizador.');
+        }
+
+        if ((string) $order->status !== 'awaiting_payment') {
+            return $order->fresh(['items', 'statusHistory']);
+        }
+
+        $addresses = $user->addresses()
+            ->orderByDesc('is_default_shipping')
+            ->orderByDesc('is_default_billing')
+            ->orderBy('id')
+            ->get();
+
+        if ($addresses->count() === 0) {
+            return $order->fresh(['items', 'statusHistory']);
+        }
+
+        $shippingAddress = $addresses->firstWhere('is_default_shipping', true) ?? $addresses->first();
+        $billingAddress = $addresses->firstWhere('is_default_billing', true) ?? $shippingAddress;
+
+        $shippingSnapshot = $shippingAddress->snapshot();
+        $billingSnapshot = $billingAddress->snapshot();
+
+        $currentShipping = (array) ($order->shipping_address_snapshot ?? []);
+        $currentBilling = (array) ($order->billing_address_snapshot ?? []);
+        if ($currentShipping === $shippingSnapshot && $currentBilling === $billingSnapshot) {
+            return $order->fresh(['items', 'statusHistory']);
+        }
+
+        DB::transaction(function () use ($order, $shippingSnapshot, $billingSnapshot, $actorUserId): void {
+            $order->shipping_address_snapshot = $shippingSnapshot;
+            $order->billing_address_snapshot = $billingSnapshot;
+            $order->save();
+
+            OrderStatusHistory::query()->create([
+                'order_id' => $order->id,
+                'status' => (string) $order->status,
+                'note' => 'Moradas da encomenda sincronizadas com as moradas atuais do cliente.',
+                'created_by_user_id' => $actorUserId,
+            ]);
+        });
+
+        return $order->fresh(['items', 'statusHistory']);
+    }
+
+    /**
+     * @return array{message: string, email_sent: bool, redirect_url?: string}
+     */
+    public function executeOrderPayment(Order $order, ?int $actorUserId = null): array
+    {
+        if ((string) $order->status !== 'awaiting_payment') {
+            throw new \RuntimeException('So e possivel executar pagamento em encomendas por pagar.');
+        }
+
+        $payment = is_array($order->payment_method_snapshot) ? $order->payment_method_snapshot : [];
+        $code = trim((string) ($payment['code'] ?? ''));
+        $gateway = trim((string) data_get($payment, 'meta.gateway', ''));
+
+        if ($code === '') {
+            throw new \RuntimeException('Metodo de pagamento invalido nesta encomenda.');
+        }
+
+        if (str_starts_with($code, 'sibs_')) {
+            $result = $this->sibsCheckout->startCheckoutForOrder($order, $actorUserId);
+
+            if ($code === 'sibs_multibanco') {
+                $this->orderEmails->sendPaymentUpdated($order->fresh(), null);
+            }
+
+            return [
+                'message' => (string) ($result['message'] ?? 'Pagamento SIBS iniciado.'),
+                'email_sent' => $code === 'sibs_multibanco',
+                'redirect_url' => isset($result['redirect_url']) ? (string) $result['redirect_url'] : null,
+            ];
+        }
+
+        if ($gateway === 'manual_bank_transfer') {
+            OrderStatusHistory::query()->create([
+                'order_id' => $order->id,
+                'status' => (string) $order->status,
+                'note' => 'Pagamento iniciado por Transferencia Bancaria.',
+                'created_by_user_id' => $actorUserId,
+            ]);
+
+            return [
+                'message' => 'Usa os dados de transferencia para concluir o pagamento.',
+                'email_sent' => false,
+            ];
+        }
+
+        return [
+            'message' => 'Metodo de pagamento atualizado.',
+            'email_sent' => false,
+        ];
     }
 
     /**

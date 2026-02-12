@@ -70,11 +70,11 @@
                             <div class="mt-3 d-flex gap-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" value="1" name="is_default_shipping" id="is_default_shipping" @checked(old('is_default_shipping', $address->is_default_shipping))>
-                                    <label class="form-check-label" for="is_default_shipping">Default envio</label>
+                                    <label class="form-check-label" for="is_default_shipping">Endereco de envio</label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" value="1" name="is_default_billing" id="is_default_billing" @checked(old('is_default_billing', $address->is_default_billing))>
-                                    <label class="form-check-label" for="is_default_billing">Default faturacao</label>
+                                    <label class="form-check-label" for="is_default_billing">Endereco de faturacao</label>
                                 </div>
                             </div>
                             <div class="mt-3 d-flex gap-2">

@@ -38,9 +38,24 @@ class TopProductsTableWidget extends TableWidget
             ]);
     }
 
+    public function getTableRecordKey(\Illuminate\Database\Eloquent\Model|array $record): string
+    {
+        $productKey = trim((string) data_get($record, 'product_key', ''));
+        if ($productKey !== '') {
+            return $productKey;
+        }
+
+        if (is_array($record)) {
+            return (string) ($record['id'] ?? spl_object_id((object) $record));
+        }
+
+        return (string) $record->getKey();
+    }
+
     private function getBaseQuery(): Builder
     {
         return OrderItem::query()
+            ->selectRaw('MIN(order_items.id) as id')
             ->selectRaw('order_items.product_key')
             ->selectRaw('MAX(order_items.title) as title')
             ->selectRaw('MAX(order_items.reference) as reference')
@@ -51,4 +66,3 @@ class TopProductsTableWidget extends TableWidget
             ->groupBy('order_items.product_key');
     }
 }
-

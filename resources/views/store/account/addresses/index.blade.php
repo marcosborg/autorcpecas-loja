@@ -29,8 +29,8 @@
                                         <div>{{ $address->postal_code }} {{ $address->city }}</div>
                                         <div>{{ $address->country_iso2 }}</div>
                                         <div class="small text-muted mt-2">
-                                            @if ($address->is_default_shipping) <span class="badge text-bg-secondary">Default envio</span> @endif
-                                            @if ($address->is_default_billing) <span class="badge text-bg-secondary">Default faturacao</span> @endif
+                                            @if ($address->is_default_shipping) <span class="badge text-bg-secondary">Endereco de envio</span> @endif
+                                            @if ($address->is_default_billing) <span class="badge text-bg-secondary">Endereco de faturacao</span> @endif
                                         </div>
                                     </div>
                                     <div class="card-footer d-flex gap-2">
@@ -50,4 +50,3 @@
         </div>
     </div>
 @endsection
-

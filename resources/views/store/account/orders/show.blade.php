@@ -93,7 +93,7 @@
                                         <form method="post" action="{{ url('/loja/conta/encomendas/'.$order->id.'/payment-method') }}">
                                             @csrf
                                             <label class="form-label">Alterar metodo de pagamento</label>
-                                            <div class="input-group">
+                                            <div class="input-group mb-2">
                                                 <select class="form-select" name="payment_method_id" required>
                                                     @foreach (($availablePaymentMethods ?? []) as $method)
                                                         <option value="{{ $method['id'] }}" @selected((string) ($payment['code'] ?? '') === (string) ($method['code'] ?? ''))>
@@ -103,6 +103,7 @@
                                                 </select>
                                                 <button class="btn btn-outline-primary" type="submit">Atualizar</button>
                                             </div>
+                                            <button class="btn btn-primary w-100" formaction="{{ url('/loja/conta/encomendas/'.$order->id.'/pay') }}" type="submit">Executar pagamento</button>
                                             @error('payment_method_id')
                                                 <div class="text-danger mt-2">{{ $message }}</div>
                                             @enderror

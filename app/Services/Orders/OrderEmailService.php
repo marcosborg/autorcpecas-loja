@@ -24,7 +24,7 @@ class OrderEmailService
         $context = [
             'subject' => 'Encomenda criada: '.$order->order_number,
             'title' => 'Recebemos a tua encomenda',
-            'intro' => 'A encomenda foi criada com sucesso e está registada no teu painel de cliente.',
+            'intro' => 'A encomenda foi criada com sucesso e esta registada no teu painel de cliente.',
             'highlight' => 'Estado atual: '.OrderStatuses::label((string) $order->status),
             'button_label' => 'Acompanhar encomenda',
             'button_url' => url('/loja/conta/encomendas/'.$order->id),
@@ -59,18 +59,18 @@ class OrderEmailService
         }
 
         $context = [
-            'subject' => 'Atualização de pagamento: '.$order->order_number,
-            'title' => 'Atualização de pagamento da encomenda',
-            'intro' => 'Temos uma atualização sobre o pagamento da tua encomenda.',
+            'subject' => 'AtualizaÃ§Ã£o de pagamento: '.$order->order_number,
+            'title' => 'AtualizaÃ§Ã£o de pagamento da encomenda',
+            'intro' => 'Temos uma atualizacao sobre o pagamento da tua encomenda.',
             'highlight' => $highlight,
             'button_label' => 'Ver detalhe de pagamento',
             'button_url' => url('/loja/conta/encomendas/'.$order->id),
-            'rows' => [
+            'rows' => array_merge([
                 ['label' => 'Encomenda', 'value' => (string) $order->order_number],
-                ['label' => 'Método de pagamento', 'value' => $paymentMethod !== '' ? $paymentMethod : '-'],
+                ['label' => 'Metodo de pagamento', 'value' => $paymentMethod !== '' ? $paymentMethod : '-'],
                 ['label' => 'Estado atual', 'value' => OrderStatuses::label($current)],
                 ['label' => 'Total c/ IVA', 'value' => number_format((float) $order->total_inc_vat, 2, ',', ' ').' '.$order->currency],
-            ],
+            ], $this->multibancoRows($order)),
         ];
 
         $this->deliver($email, $order, $context);
