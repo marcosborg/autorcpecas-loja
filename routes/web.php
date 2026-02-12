@@ -53,5 +53,6 @@ Route::prefix('loja')->group(function () {
         Route::get('conta/encomendas/{order}/pay/sibs', [\App\Http\Controllers\Store\StoreOrderController::class, 'showSibsCheckout']);
         Route::post('conta/encomendas/{order}/payment-method', [\App\Http\Controllers\Store\StoreOrderController::class, 'updatePaymentMethod']);
         Route::post('conta/encomendas/{order}/pay', [\App\Http\Controllers\Store\StoreOrderController::class, 'executePayment']);
+        Route::post('conta/encomendas/{order}/payment-reference/refresh', [\App\Http\Controllers\Store\StoreOrderController::class, 'refreshPaymentReference']);
     });
 });

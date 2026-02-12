@@ -80,6 +80,15 @@
                                     <div><strong>Entidade MB:</strong> {{ $paymentInstructions['entity'] ?? 'N/D' }}</div>
                                     <div><strong>Referencia MB:</strong> {{ $paymentInstructions['reference_display'] ?? ($paymentInstructions['reference'] ?? 'N/D') }}</div>
                                     <div><strong>Montante:</strong> {{ number_format((float) ($paymentInstructions['amount'] ?? $order->total_inc_vat), 2, ',', ' ') }} {{ $paymentInstructions['currency'] ?? $order->currency }}</div>
+                                    @if (($payment['code'] ?? '') === 'sibs_multibanco' && empty($paymentInstructions['reference']))
+                                        <div class="small text-muted mt-1">A referencia ainda nao foi devolvida pela SIBS. Clica em <strong>Executar pagamento</strong> para abrir o checkout SIBS.</div>
+                                        @if (($order->status ?? '') === 'awaiting_payment')
+                                            <form class="mt-2" method="post" action="{{ url('/loja/conta/encomendas/'.$order->id.'/payment-reference/refresh') }}">
+                                                @csrf
+                                                <button class="btn btn-sm btn-outline-secondary" type="submit">Atualizar referencia</button>
+                                            </form>
+                                        @endif
+                                    @endif
                                 @endif
                                 @if (!empty($payment['meta']['gateway']) && ($payment['meta']['gateway'] === 'manual_bank_transfer'))
                                     <hr>

@@ -14,9 +14,10 @@
                             <p class="mb-3">Mantem o telemovel por perto para aprovar o pagamento MB WAY.</p>
                         @endif
 
+                        <input type="submit" value="Submit" style="display:none" />
                         <form class="paymentSPG"
                             spg-context="{{ $widget['form_context'] ?? '' }}"
-                            spg-config="{{ e(json_encode($widget['form_config'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) }}"
+                            spg-config='@json($widget["form_config"] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)'
                             spg-signature="{{ $widget['signature'] ?? '' }}"
                             spg-style="{}">
                         </form>

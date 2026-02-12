@@ -37,6 +37,18 @@ class StoreOrderController extends Controller
         abort_unless($user, 401);
         abort_if((int) $order->user_id !== (int) $user->id, 404);
 
+        $paymentSnapshot = is_array($order->payment_method_snapshot) ? $order->payment_method_snapshot : [];
+        $paymentCode = (string) ($paymentSnapshot['code'] ?? '');
+        $reference = trim((string) data_get($paymentSnapshot, 'payment_instructions.reference', ''));
+        if ((string) $order->status === 'awaiting_payment' && $paymentCode === 'sibs_multibanco' && $reference === '') {
+            try {
+                $this->sibsCheckout->refreshMultibancoReference($order);
+                $order->refresh();
+            } catch (\RuntimeException) {
+                // Silent fallback: UI still allows manual refresh button.
+            }
+        }
+
         $order->load(['items', 'statusHistory']);
 
         $availablePaymentMethods = [];
@@ -114,6 +126,25 @@ class StoreOrderController extends Controller
         }
 
         return back()->with('success', (string) ($result['message'] ?? 'Pagamento iniciado.'));
+    }
+
+    public function refreshPaymentReference(Request $request, Order $order): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_if((int) $order->user_id !== (int) $user->id, 404);
+
+        try {
+            $result = $this->sibsCheckout->refreshMultibancoReference($order);
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['payment_method_id' => $e->getMessage()]);
+        }
+
+        if (! empty($result['has_reference'])) {
+            return back()->with('success', (string) ($result['message'] ?? 'Referencia atualizada.'));
+        }
+
+        return back()->withErrors(['payment_method_id' => (string) ($result['message'] ?? 'Referencia ainda indisponivel.')]);
     }
 
     public function showSibsCheckout(Request $request, Order $order): View|RedirectResponse

@@ -27,12 +27,11 @@ class SibsCheckoutService
         }
 
         $meta = $this->resolveMeta($code, $snapshot);
-        $clientId = trim((string) ($meta['client_id'] ?? ''));
-        $clientSecret = trim((string) ($meta['client_secret'] ?? ''));
         $terminalId = trim((string) ($meta['terminal_id'] ?? ''));
         $bearerToken = trim((string) ($meta['bearer_token'] ?? ''));
+        $credentialAttempts = $this->buildCredentialAttempts($meta);
 
-        if ($clientId === '' || $terminalId === '' || $bearerToken === '') {
+        if ($terminalId === '' || $bearerToken === '' || $credentialAttempts === []) {
             throw new \RuntimeException('Credenciais SIBS incompletas (client_id, terminal_id ou bearer_token).');
         }
 
@@ -52,21 +51,41 @@ class SibsCheckoutService
             $meta,
         );
 
-        $authToken = preg_replace('/^Bearer\s+/i', '', $bearerToken) ?: $bearerToken;
+        $response = null;
+        $usedAttempt = null;
+        foreach ($credentialAttempts as $idx => $attempt) {
+            $usedAttempt = $attempt;
+            Log::info('SIBS checkout attempt', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'code' => $code,
+                'attempt' => $idx + 1,
+                'client_id' => $attempt['client_id'],
+                'has_client_secret' => $attempt['client_secret'] !== '',
+                'server_mode' => $serverMode,
+            ]);
 
-        $headers = [
-            'Authorization' => 'Bearer '.$authToken,
-            'X-IBM-Client-ID' => $clientId,
-            'X-IBM-Client-Id' => $clientId,
-            'Content-Type' => 'application/json;charset=UTF-8',
-        ];
-        if ($clientSecret !== '') {
-            $headers['X-IBM-Client-Secret'] = $clientSecret;
+            $response = $this->requestCheckout(
+                $apiUrl,
+                $payload,
+                $bearerToken,
+                $attempt['client_id'],
+                $attempt['client_secret'],
+            );
+
+            if ($response->successful()) {
+                break;
+            }
+
+            // If credentials are rejected, retry with the next credential set.
+            if ($response->status() !== 401) {
+                break;
+            }
         }
 
-        $response = Http::timeout(30)
-            ->withHeaders($headers)
-            ->post($apiUrl, $payload);
+        if (! $response) {
+            throw new \RuntimeException('Falha a preparar pedido para a SIBS.');
+        }
 
         if (! $response->successful()) {
             $body = $response->json();
@@ -132,7 +151,23 @@ class SibsCheckoutService
         ];
 
         $snapshot['sibs_execution'] = $execution;
-        $snapshot = $this->hydrateReferenceDetails($snapshot, $body, (float) $order->total_inc_vat, (string) $order->currency);
+        $hydrateBody = $body;
+        $hasReferenceInCreateResponse = trim((string) data_get($body, 'paymentReference.reference', '')) !== '';
+        if ($code === 'sibs_multibanco' && ! $hasReferenceInCreateResponse && $transactionId !== '' && is_array($usedAttempt)) {
+            $statusBody = $this->requestPaymentStatus(
+                $apiUrl,
+                $transactionId,
+                $bearerToken,
+                (string) ($usedAttempt['client_id'] ?? ''),
+                (string) ($usedAttempt['client_secret'] ?? ''),
+            );
+
+            if (is_array($statusBody)) {
+                $hydrateBody = array_replace_recursive($hydrateBody, $statusBody);
+            }
+        }
+
+        $snapshot = $this->hydrateReferenceDetails($snapshot, $hydrateBody, (float) $order->total_inc_vat, (string) $order->currency);
 
         $order->payment_method_snapshot = $snapshot;
         $order->save();
@@ -146,20 +181,194 @@ class SibsCheckoutService
 
         if (in_array($code, ['sibs_mbway', 'sibs_card'], true) && $execution['form_context'] !== '' && $execution['signature'] !== '' && $execution['widget_url'] !== '') {
             return [
-                'message' => 'Checkout SIBS iniciado. Continua o pagamento.',
+                'message' => $code === 'sibs_mbway'
+                    ? 'Pedido MB WAY iniciado. Confirma no telemovel.'
+                    : 'Checkout SIBS iniciado. Continua o pagamento.',
                 'redirect_url' => url('/loja/conta/encomendas/'.$order->id.'/pay/sibs'),
             ];
         }
 
         if ($code === 'sibs_multibanco') {
             return [
-                'message' => 'Referencia Multibanco gerada com sucesso.',
+                'message' => 'Pedido Multibanco iniciado. Se a referencia nao aparecer ja, abre o checkout SIBS para concluir.',
+                'redirect_url' => url('/loja/conta/encomendas/'.$order->id.'/pay/sibs'),
             ];
         }
 
         return [
             'message' => 'Pagamento SIBS iniciado.',
         ];
+    }
+
+    /**
+     * @return array{message: string, updated: bool, has_reference: bool}
+     */
+    public function refreshMultibancoReference(Order $order): array
+    {
+        $snapshot = is_array($order->payment_method_snapshot) ? $order->payment_method_snapshot : [];
+        $code = trim((string) ($snapshot['code'] ?? ''));
+        if ($code !== 'sibs_multibanco') {
+            throw new \RuntimeException('A atualizacao de referencia so esta disponivel para SIBS Referencia Multibanco.');
+        }
+
+        $transactionId = trim((string) data_get($snapshot, 'sibs_execution.transaction_id', ''));
+        if ($transactionId === '') {
+            throw new \RuntimeException('Nao existe transacao SIBS associada para atualizar a referencia.');
+        }
+
+        $meta = $this->resolveMeta($code, $snapshot);
+        $serverMode = mb_strtoupper(trim((string) ($meta['server'] ?? data_get($snapshot, 'sibs_execution.server_mode', 'TEST'))), 'UTF-8');
+        $apiUrl = $serverMode === 'LIVE' ? self::API_URL_LIVE : self::API_URL_TEST;
+        $bearerToken = trim((string) ($meta['bearer_token'] ?? ''));
+        $credentialAttempts = $this->buildCredentialAttempts($meta);
+
+        if ($bearerToken === '' || $credentialAttempts === []) {
+            throw new \RuntimeException('Credenciais SIBS incompletas para atualizar a referencia.');
+        }
+
+        $statusBody = null;
+        foreach ($credentialAttempts as $attempt) {
+            $statusBody = $this->requestPaymentStatus(
+                $apiUrl,
+                $transactionId,
+                $bearerToken,
+                $attempt['client_id'],
+                $attempt['client_secret'],
+            );
+
+            if (is_array($statusBody)) {
+                break;
+            }
+        }
+
+        if (! is_array($statusBody)) {
+            throw new \RuntimeException('Nao foi possivel consultar o estado da transacao SIBS.');
+        }
+
+        $snapshot['sibs_execution']['status_response'] = $statusBody;
+        $snapshot = $this->hydrateReferenceDetails($snapshot, $statusBody, (float) $order->total_inc_vat, (string) $order->currency);
+
+        $reference = trim((string) data_get($snapshot, 'payment_instructions.reference', ''));
+
+        $order->payment_method_snapshot = $snapshot;
+        $order->save();
+
+        if ($reference !== '') {
+            return [
+                'message' => 'Referencia Multibanco atualizada com sucesso.',
+                'updated' => true,
+                'has_reference' => true,
+            ];
+        }
+
+        return [
+            'message' => 'A SIBS ainda nao devolveu a referencia para esta transacao.',
+            'updated' => false,
+            'has_reference' => false,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function requestCheckout(
+        string $apiUrl,
+        array $payload,
+        string $bearerToken,
+        string $clientId,
+        string $clientSecret = '',
+    ) {
+        $authToken = preg_replace('/^Bearer\s+/i', '', $bearerToken) ?: $bearerToken;
+
+        $headers = [
+            'Authorization' => 'Bearer '.$authToken,
+            'Content-Type' => 'application/json;charset=UTF-8',
+            'X-IBM-Client-id' => $clientId,
+        ];
+
+        if ($clientSecret !== '') {
+            $headers['X-IBM-Client-Secret'] = $clientSecret;
+        }
+
+        return Http::timeout(30)
+            ->withHeaders($headers)
+            ->post($apiUrl, $payload);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function requestPaymentStatus(
+        string $apiUrl,
+        string $transactionId,
+        string $bearerToken,
+        string $clientId,
+        string $clientSecret = '',
+    ): ?array {
+        if ($transactionId === '' || $clientId === '' || $bearerToken === '') {
+            return null;
+        }
+
+        $authToken = preg_replace('/^Bearer\s+/i', '', $bearerToken) ?: $bearerToken;
+        $headers = [
+            'Authorization' => 'Bearer '.$authToken,
+            'Content-Type' => 'application/json;charset=UTF-8',
+            'X-IBM-Client-id' => $clientId,
+        ];
+
+        if ($clientSecret !== '') {
+            $headers['X-IBM-Client-Secret'] = $clientSecret;
+        }
+
+        $statusUrl = rtrim($apiUrl, '/').'/'.$transactionId.'/status';
+        $response = Http::timeout(30)
+            ->withHeaders($headers)
+            ->get($statusUrl);
+
+        if (! $response->successful()) {
+            Log::info('SIBS status lookup failed', [
+                'transaction_id' => $transactionId,
+                'status' => $response->status(),
+                'url' => $statusUrl,
+                'body' => $response->body(),
+            ]);
+
+            return null;
+        }
+
+        $body = $response->json();
+
+        return is_array($body) ? $body : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     * @return array<int, array{client_id: string, client_secret: string}>
+     */
+    private function buildCredentialAttempts(array $meta): array
+    {
+        $clientIds = array_values(array_filter(array_unique([
+            trim((string) ($meta['client_id'] ?? '')),
+            trim((string) ($meta['client_id_alt'] ?? env('SIBS_CLIENT_ID_ALT', ''))),
+        ])));
+
+        $secrets = array_values(array_unique([
+            trim((string) ($meta['client_secret'] ?? '')),
+            trim((string) ($meta['client_secret_alt'] ?? env('SIBS_CLIENT_SECRET_ALT', ''))),
+            '',
+        ]));
+
+        $attempts = [];
+        foreach ($clientIds as $clientId) {
+            foreach ($secrets as $secret) {
+                $attempts[] = [
+                    'client_id' => $clientId,
+                    'client_secret' => $secret,
+                ];
+            }
+        }
+
+        return $attempts;
     }
 
     /**
@@ -220,6 +429,7 @@ class SibsCheckoutService
     private function mapPaymentType(string $code, string $mode): string
     {
         if ($code === 'sibs_multibanco') {
+            // Align with official SIBS PrestaShop module for MB reference creation.
             return 'AUTH';
         }
 
@@ -244,7 +454,10 @@ class SibsCheckoutService
 
         $customerName = trim(((string) ($shipping['first_name'] ?? '')).' '.((string) ($shipping['last_name'] ?? '')));
         $customerEmail = trim((string) ($order->user?->email ?? ''));
-        $customerPhone = trim((string) (($shipping['phone'] ?? '') ?: ($billing['phone'] ?? '') ?: ($order->user?->phone ?? '')));
+        $channel = trim((string) ($meta['channel'] ?? 'web'));
+        if ($channel === '') {
+            $channel = 'web';
+        }
 
         $amount = round((float) $order->total_inc_vat, 2);
         $currency = (string) $order->currency;
@@ -253,7 +466,7 @@ class SibsCheckoutService
         $payload = [
             'merchant' => [
                 'terminalId' => (int) $terminalId,
-                'channel' => 'web',
+                'channel' => $channel,
                 'merchantTransactionId' => $merchantTransactionId,
             ],
             'customer' => [
@@ -277,7 +490,7 @@ class SibsCheckoutService
                 ],
             ],
             'transaction' => [
-                'transactionTimestamp' => now()->format('Y-m-d\TH:i:s'),
+                'transactionTimestamp' => now()->format('Y-m-d\TH:i:sP'),
                 'description' => 'Transaction for order number '.$merchantTransactionId.' terminalId='.$terminalId,
                 'moto' => ((string) ($meta['moto'] ?? '0')) === '1',
                 'paymentType' => $paymentType,
@@ -301,11 +514,12 @@ class SibsCheckoutService
             ],
         ];
 
-        if ($customerPhone !== '') {
-            $payload['customer']['customerInfo']['customerPhone'] = $customerPhone;
-        }
-
         if ($paymentMethod === 'REFERENCE') {
+            $entity = trim((string) ($meta['payment_entity'] ?? ''));
+            if ($entity === '') {
+                throw new \RuntimeException('Referencia Multibanco indisponivel: falta configurar a entidade MB na SIBS.');
+            }
+
             $initial = now();
             $expiryValue = (int) ($meta['payment_value'] ?? 0);
             $expiryType = mb_strtolower(trim((string) ($meta['payment_type'] ?? 'day')), 'UTF-8');
@@ -319,8 +533,8 @@ class SibsCheckoutService
             }
 
             $payload['transaction']['paymentReference'] = [
-                'initialDatetime' => $initial->format('Y-m-d\TH:i:s'),
-                'finalDatetime' => $final->format('Y-m-d\TH:i:s'),
+                'initialDatetime' => $initial->format('Y-m-d\TH:i:sP'),
+                'finalDatetime' => $final->format('Y-m-d\TH:i:sP'),
                 'maxAmount' => [
                     'value' => $amount,
                     'currency' => $currency,
@@ -329,7 +543,7 @@ class SibsCheckoutService
                     'value' => $amount,
                     'currency' => $currency,
                 ],
-                'entity' => trim((string) ($meta['payment_entity'] ?? '')),
+                'entity' => $entity,
             ];
         }
 
@@ -347,12 +561,37 @@ class SibsCheckoutService
             return $snapshot;
         }
 
-        $entity = trim((string) data_get($body, 'paymentReference.entity', ''));
-        $reference = preg_replace('/\D+/', '', (string) data_get($body, 'paymentReference.reference', ''));
+        $existingInstructions = is_array($snapshot['payment_instructions'] ?? null) ? $snapshot['payment_instructions'] : [];
+        $formContext = trim((string) data_get($snapshot, 'sibs_execution.form_context', ''));
+        $formContextReference = $this->extractReferenceDetailsFromFormContext($formContext);
+
+        $entity = trim((string) (
+            data_get($body, 'paymentReference.entity')
+            ?? $formContextReference['entity']
+            ?? ($existingInstructions['entity'] ?? '')
+        ));
+
+        $reference = preg_replace('/\D+/', '', (string) (
+            data_get($body, 'paymentReference.reference')
+            ?? $formContextReference['reference']
+            ?? ($existingInstructions['reference'] ?? '')
+        ));
         $reference = is_string($reference) ? trim($reference) : '';
-        $amount = (float) (data_get($body, 'paymentReference.amount.value') ?? $defaultAmount);
-        $currency = trim((string) (data_get($body, 'paymentReference.amount.currency') ?? $defaultCurrency));
-        $expireDate = trim((string) data_get($body, 'paymentReference.expireDate', ''));
+        $amount = (float) (
+            data_get($body, 'paymentReference.amount.value')
+            ?? $formContextReference['amount']
+            ?? ($existingInstructions['amount'] ?? $defaultAmount)
+        );
+        $currency = trim((string) (
+            data_get($body, 'paymentReference.amount.currency')
+            ?? $formContextReference['currency']
+            ?? ($existingInstructions['currency'] ?? $defaultCurrency)
+        ));
+        $expireDate = trim((string) (
+            data_get($body, 'paymentReference.expireDate')
+            ?? $formContextReference['expire_date']
+            ?? ($existingInstructions['expire_date'] ?? '')
+        ));
 
         $display = $reference;
         if (strlen($reference) === 9) {
@@ -369,5 +608,63 @@ class SibsCheckoutService
         ];
 
         return $snapshot;
+    }
+
+    /**
+     * @return array{entity: string, reference: string, amount: float|null, currency: string, expire_date: string}
+     */
+    private function extractReferenceDetailsFromFormContext(string $formContext): array
+    {
+        if ($formContext === '') {
+            return [
+                'entity' => '',
+                'reference' => '',
+                'amount' => null,
+                'currency' => '',
+                'expire_date' => '',
+            ];
+        }
+
+        $decoded = base64_decode($formContext, true);
+        if (! is_string($decoded) || $decoded === '') {
+            return [
+                'entity' => '',
+                'reference' => '',
+                'amount' => null,
+                'currency' => '',
+                'expire_date' => '',
+            ];
+        }
+
+        $json = json_decode($decoded, true);
+        if (! is_array($json)) {
+            return [
+                'entity' => '',
+                'reference' => '',
+                'amount' => null,
+                'currency' => '',
+                'expire_date' => '',
+            ];
+        }
+
+        $entity = trim((string) (
+            data_get($json, 'PaymentReferenceEntities.0.Entity')
+            ?? data_get($json, 'paymentReference.entity')
+            ?? ''
+        ));
+        $reference = preg_replace('/\D+/', '', (string) (
+            data_get($json, 'PaymentReferences.0.Reference')
+            ?? data_get($json, 'PaymentReference.reference')
+            ?? data_get($json, 'paymentReference.reference')
+            ?? ''
+        ));
+
+        return [
+            'entity' => $entity,
+            'reference' => is_string($reference) ? trim($reference) : '',
+            'amount' => is_numeric(data_get($json, 'paymentReference.amount.value')) ? (float) data_get($json, 'paymentReference.amount.value') : null,
+            'currency' => trim((string) (data_get($json, 'paymentReference.amount.currency') ?? '')),
+            'expire_date' => trim((string) (data_get($json, 'paymentReference.expireDate') ?? '')),
+        ];
     }
 }

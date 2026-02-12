@@ -198,7 +198,92 @@ test('executes multibanco payment flow for unpaid order', function () {
         ->and((string) data_get($order->payment_method_snapshot, 'payment_instructions.reference'))->toBe('123456789')
         ->and(OrderStatusHistory::query()->where('order_id', $order->id)->exists())->toBeTrue();
 
+    Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
+        $body = $request->data();
+        return str_contains((string) $request->url(), '/api/v2/payments')
+            && (string) data_get($body, 'transaction.paymentType') === 'AUTH';
+    });
+
     Mail::assertSent(OrderLifecycleMail::class);
+});
+
+test('loads multibanco reference details from status endpoint when create response has no paymentReference', function () {
+    Mail::fake();
+
+    $formContext = base64_encode((string) json_encode([
+        'PaymentReferenceEntities' => [
+            ['Entity' => '456000'],
+        ],
+    ], JSON_UNESCAPED_SLASHES));
+
+    Http::fake([
+        'https://spg.qly.site1.sibs.pt/api/v2/payments' => Http::response([
+            'transactionID' => 'tx-mb-ctx-123',
+            'returnStatus' => ['statusCode' => '000', 'statusMsg' => 'Success'],
+            'formContext' => $formContext,
+        ], 200),
+        'https://spg.qly.site1.sibs.pt/api/v2/payments/tx-mb-ctx-123/status' => Http::response([
+            'returnStatus' => ['statusCode' => '000', 'statusMsg' => 'Success'],
+            'paymentReference' => [
+                'entity' => '456000',
+                'reference' => '456123789',
+                'amount' => ['value' => '30.75', 'currency' => 'EUR'],
+            ],
+        ], 200),
+    ]);
+
+    $user = User::factory()->create([
+        'email' => 'cliente-mb-status@example.com',
+    ]);
+
+    PaymentMethod::query()->create([
+        'code' => 'sibs_multibanco',
+        'name' => 'Referencia Multibanco',
+        'provider' => 'SIBS',
+        'fee_type' => 'fixed',
+        'fee_value' => 0,
+        'active' => true,
+        'position' => 1,
+        'meta' => [
+            'gateway' => 'sibs',
+            'client_id' => 'client-test',
+            'terminal_id' => '1510829',
+            'bearer_token' => 'token-test',
+            'server' => 'TEST',
+            'payment_entity' => '456000',
+            'payment_type' => 'day',
+            'payment_value' => '1',
+        ],
+    ]);
+
+    $order = Order::query()->create([
+        'user_id' => $user->id,
+        'order_number' => 'ORC-20260212-000892',
+        'status' => 'awaiting_payment',
+        'currency' => 'EUR',
+        'vat_rate' => 23,
+        'subtotal_ex_vat' => 20,
+        'shipping_ex_vat' => 5,
+        'payment_fee_ex_vat' => 0,
+        'total_ex_vat' => 25,
+        'total_inc_vat' => 30.75,
+        'shipping_address_snapshot' => ['country_iso2' => 'PT'],
+        'billing_address_snapshot' => ['country_iso2' => 'PT'],
+        'shipping_method_snapshot' => ['name' => 'DPD'],
+        'payment_method_snapshot' => [
+            'code' => 'sibs_multibanco',
+            'name' => 'Referencia Multibanco',
+            'meta' => ['gateway' => 'sibs', 'payment_entity' => '456000', 'payment_type' => 'PAGAMENTO'],
+        ],
+        'placed_at' => now(),
+    ]);
+
+    app(StoreCheckoutService::class)->executeOrderPayment($order, (int) $user->id);
+
+    $order->refresh();
+
+    expect((string) data_get($order->payment_method_snapshot, 'payment_instructions.entity'))->toBe('456000')
+        ->and((string) data_get($order->payment_method_snapshot, 'payment_instructions.reference'))->toBe('456123789');
 });
 
 test('executes mbway payment flow and returns sibs redirect url', function () {

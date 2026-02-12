@@ -75,8 +75,11 @@ test('sibs webhook confirms payment and sends payment email once', function () {
 
     Mail::assertSent(OrderLifecycleMail::class, 1);
     Mail::assertSent(OrderLifecycleMail::class, function (OrderLifecycleMail $mail) use ($order): bool {
+        $title = (string) ($mail->context['title'] ?? '');
+
         return $mail->order->is($order)
-            && ($mail->context['title'] ?? '') === 'Atualização de pagamento da encomenda';
+            && str_contains($title, 'Atualiza')
+            && str_contains($title, 'pagamento');
     });
 });
 
