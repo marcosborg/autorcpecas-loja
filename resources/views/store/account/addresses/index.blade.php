@@ -28,6 +28,29 @@
                                         @endif
                                         <div>{{ $address->postal_code }} {{ $address->city }}</div>
                                         <div>{{ $address->country_iso2 }}</div>
+                                        @if ($address->phone)
+                                            <div class="small">Tel: {{ $address->phone_country_code }} {{ $address->phone }}</div>
+                                        @endif
+                                        @if ($address->vat_number)
+                                            <div class="small">NIF: {{ $address->vat_number }}</div>
+                                            <div class="small mt-1">
+                                                @if ($address->vat_is_valid === true)
+                                                    <span class="badge text-bg-success">VAT validado</span>
+                                                @elseif ($address->vat_is_valid === false)
+                                                    <span class="badge text-bg-danger">VAT invalido</span>
+                                                @else
+                                                    <span class="badge text-bg-secondary">VAT por validar</span>
+                                                @endif
+                                                @if ($address->vat_validated_at)
+                                                    <small class="text-muted ms-2">{{ $address->vat_validated_at->format('d/m/Y H:i') }}</small>
+                                                @endif
+                                            </div>
+                                        @endif
+                                        @if ($address->zone_code)
+                                            <div class="small text-muted">
+                                                Zona: {{ $address->zone_code === 'PT_ISLANDS' ? 'Acores / Madeira' : 'Portugal Continental' }}
+                                            </div>
+                                        @endif
                                         <div class="small text-muted mt-2">
                                             @if ($address->is_default_shipping) <span class="badge text-bg-secondary">Endereco de envio</span> @endif
                                             @if ($address->is_default_billing) <span class="badge text-bg-secondary">Endereco de faturacao</span> @endif

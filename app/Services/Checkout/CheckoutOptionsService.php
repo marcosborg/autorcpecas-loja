@@ -16,10 +16,16 @@ class CheckoutOptionsService
      *   payment_methods: list<array<string, mixed>>
      * }
      */
-    public function quote(float $subtotalExVat, float $weightKg, string $countryIso2 = 'PT'): array
+    public function quote(
+        float $subtotalExVat,
+        float $weightKg,
+        string $countryIso2 = 'PT',
+        ?string $zoneCode = null,
+        ?string $postalCode = null,
+    ): array
     {
         $countryIso2 = mb_strtoupper(trim($countryIso2), 'UTF-8');
-        $zone = $this->resolveZone($countryIso2);
+        $zone = $this->resolveZone($countryIso2, $zoneCode, $postalCode);
         $zoneId = $zone?->id;
 
         if (! $zoneId) {
@@ -45,8 +51,23 @@ class CheckoutOptionsService
         ];
     }
 
-    private function resolveZone(string $countryIso2): ?ShippingZone
+    private function resolveZone(string $countryIso2, ?string $zoneCode = null, ?string $postalCode = null): ?ShippingZone
     {
+        $zoneCode = trim((string) $zoneCode);
+        if ($countryIso2 === 'PT') {
+            if ($zoneCode === '') {
+                $zoneCode = $this->inferPortugueseZoneCode((string) $postalCode);
+            }
+
+            $zone = ShippingZone::query()
+                ->where('active', true)
+                ->where('code', $zoneCode)
+                ->first();
+            if ($zone) {
+                return $zone;
+            }
+        }
+
         $zoneId = ShippingZoneCountry::query()
             ->whereRaw('UPPER(country_iso2) = ?', [$countryIso2])
             ->value('shipping_zone_id');
@@ -60,6 +81,21 @@ class CheckoutOptionsService
             ->orderBy('position')
             ->orderBy('id')
             ->first();
+    }
+
+    private function inferPortugueseZoneCode(string $postalCode): string
+    {
+        $postalCode = trim($postalCode);
+        if (preg_match('/^\d{4}/', $postalCode, $matches) !== 1) {
+            return 'PT_MAINLAND';
+        }
+
+        $prefix = (int) substr((string) $matches[0], 0, 2);
+        if ($prefix >= 90 && $prefix <= 99) {
+            return 'PT_ISLANDS';
+        }
+
+        return 'PT_MAINLAND';
     }
 
     /**

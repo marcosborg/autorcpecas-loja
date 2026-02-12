@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Checkout\CheckoutOptionsService;
 use App\Services\Orders\OrderEmailService;
 use App\Services\Payments\SibsCheckoutService;
+use App\Services\Tax\CheckoutVatService;
 use Illuminate\Support\Facades\DB;
 
 class StoreCheckoutService
@@ -20,6 +21,7 @@ class StoreCheckoutService
         private readonly CheckoutOptionsService $checkoutOptions,
         private readonly OrderEmailService $orderEmails,
         private readonly SibsCheckoutService $sibsCheckout,
+        private readonly CheckoutVatService $vatService,
     ) {
     }
 
@@ -39,6 +41,8 @@ class StoreCheckoutService
             (float) $totals['subtotal_ex_vat'],
             (float) $totals['total_weight_kg'],
             (string) $shippingAddress->country_iso2,
+            (string) ($shippingAddress->zone_code ?? ''),
+            (string) ($shippingAddress->postal_code ?? ''),
         );
 
         return [
@@ -74,7 +78,7 @@ class StoreCheckoutService
             throw new \RuntimeException('Metodo de pagamento invalido para este checkout.');
         }
 
-        $vatRate = 23.0;
+        $vatRate = $this->vatService->resolveVatRate($shippingAddress, $billingAddress);
         $subtotal = (float) $context['totals']['subtotal_ex_vat'];
         $shipping = (float) ($carrier['price_ex_vat'] ?? 0);
         $paymentFee = (float) ($payment['fee_ex_vat'] ?? 0);
@@ -162,12 +166,16 @@ class StoreCheckoutService
     {
         $shippingAddress = (array) ($order->shipping_address_snapshot ?? []);
         $countryIso2 = trim((string) ($shippingAddress['country_iso2'] ?? 'PT'));
+        $zoneCode = trim((string) ($shippingAddress['zone_code'] ?? ''));
+        $postalCode = trim((string) ($shippingAddress['postal_code'] ?? ''));
         $weightKg = (float) $order->items->sum(fn (OrderItem $item): float => (float) $item->weight_kg * (int) $item->quantity);
 
         $quote = $this->checkoutOptions->quote(
             (float) $order->subtotal_ex_vat,
             $weightKg,
             $countryIso2 !== '' ? $countryIso2 : 'PT',
+            $zoneCode !== '' ? $zoneCode : null,
+            $postalCode !== '' ? $postalCode : null,
         );
 
         return array_values(array_filter(
@@ -254,9 +262,51 @@ class StoreCheckoutService
             return $order->fresh(['items', 'statusHistory']);
         }
 
-        DB::transaction(function () use ($order, $shippingSnapshot, $billingSnapshot, $actorUserId): void {
+        $weightKg = (float) $order->items->sum(fn (OrderItem $item): float => (float) $item->weight_kg * (int) $item->quantity);
+        $quote = $this->checkoutOptions->quote(
+            (float) $order->subtotal_ex_vat,
+            $weightKg,
+            (string) ($shippingSnapshot['country_iso2'] ?? 'PT'),
+            (string) ($shippingSnapshot['zone_code'] ?? ''),
+            (string) ($shippingSnapshot['postal_code'] ?? ''),
+        );
+
+        $currentCarrier = (array) ($order->shipping_method_snapshot ?? []);
+        $currentCarrierId = (int) ($currentCarrier['id'] ?? 0);
+        $newCarrier = collect((array) ($quote['carriers'] ?? []))
+            ->first(fn ($carrier): bool => (int) ($carrier['id'] ?? 0) === $currentCarrierId);
+        if (! is_array($newCarrier)) {
+            $newCarrier = collect((array) ($quote['carriers'] ?? []))->first();
+        }
+
+        $paymentOptions = (array) ($quote['payment_methods'] ?? []);
+        $currentPaymentCode = (string) data_get($order->payment_method_snapshot, 'code', '');
+        $newPayment = collect($paymentOptions)->first(fn ($payment): bool => (string) ($payment['code'] ?? '') === $currentPaymentCode);
+        if (! is_array($newPayment)) {
+            $newPayment = collect($paymentOptions)->first();
+        }
+
+        $shippingExVat = (float) ($newCarrier['price_ex_vat'] ?? $order->shipping_ex_vat);
+        $paymentFeeExVat = (float) ($newPayment['fee_ex_vat'] ?? $order->payment_fee_ex_vat);
+        $vatRate = $this->vatService->resolveVatRateFromSnapshot($shippingSnapshot, $billingSnapshot);
+        $totalExVat = (float) $order->subtotal_ex_vat + $shippingExVat + $paymentFeeExVat;
+        $totalIncVat = round($totalExVat * (1 + ($vatRate / 100)), 2);
+        $paymentSnapshot = is_array($newPayment)
+            ? $this->decoratePaymentSnapshot($newPayment, (string) $order->order_number, $totalIncVat, (string) $order->currency)
+            : (array) ($order->payment_method_snapshot ?? []);
+
+        DB::transaction(function () use ($order, $shippingSnapshot, $billingSnapshot, $actorUserId, $newCarrier, $paymentSnapshot, $shippingExVat, $paymentFeeExVat, $vatRate, $totalExVat, $totalIncVat): void {
             $order->shipping_address_snapshot = $shippingSnapshot;
             $order->billing_address_snapshot = $billingSnapshot;
+            if (is_array($newCarrier)) {
+                $order->shipping_method_snapshot = $newCarrier;
+            }
+            $order->payment_method_snapshot = $paymentSnapshot;
+            $order->shipping_ex_vat = round($shippingExVat, 2);
+            $order->payment_fee_ex_vat = round($paymentFeeExVat, 2);
+            $order->vat_rate = round($vatRate, 2);
+            $order->total_ex_vat = round($totalExVat, 2);
+            $order->total_inc_vat = round($totalIncVat, 2);
             $order->save();
 
             OrderStatusHistory::query()->create([

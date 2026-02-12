@@ -89,9 +89,9 @@
 
                                 @if (($order->status ?? '') === 'awaiting_payment')
                                     <hr>
-                                    @if (!empty($availablePaymentMethods ?? []))
-                                        <form method="post" action="{{ url('/loja/conta/encomendas/'.$order->id.'/payment-method') }}">
-                                            @csrf
+                                    <form method="post" action="{{ url('/loja/conta/encomendas/'.$order->id.'/pay') }}">
+                                        @csrf
+                                        @if (!empty($availablePaymentMethods ?? []))
                                             <label class="form-label">Alterar metodo de pagamento</label>
                                             <div class="input-group mb-2">
                                                 <select class="form-select" name="payment_method_id" required>
@@ -101,16 +101,17 @@
                                                         </option>
                                                     @endforeach
                                                 </select>
-                                                <button class="btn btn-outline-primary" type="submit">Atualizar</button>
+                                                <button class="btn btn-outline-primary" formaction="{{ url('/loja/conta/encomendas/'.$order->id.'/payment-method') }}" type="submit">Atualizar</button>
                                             </div>
-                                            <button class="btn btn-primary w-100" formaction="{{ url('/loja/conta/encomendas/'.$order->id.'/pay') }}" type="submit">Executar pagamento</button>
-                                            @error('payment_method_id')
-                                                <div class="text-danger mt-2">{{ $message }}</div>
-                                            @enderror
-                                        </form>
-                                    @else
-                                        <div class="text-muted">Sem metodos alternativos disponiveis para esta encomenda.</div>
-                                    @endif
+                                        @else
+                                            <div class="text-muted mb-2">Sem metodos alternativos disponiveis para esta encomenda.</div>
+                                        @endif
+
+                                        <button class="btn btn-primary w-100" type="submit">Executar pagamento</button>
+                                        @error('payment_method_id')
+                                            <div class="text-danger mt-2">{{ $message }}</div>
+                                        @enderror
+                                    </form>
                                 @endif
                             </div>
                         </div>

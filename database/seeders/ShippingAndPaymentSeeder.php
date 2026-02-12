@@ -13,6 +13,8 @@ class ShippingAndPaymentSeeder extends Seeder
 {
     public function run(): void
     {
+        $this->call(CountrySeeder::class);
+
         $pt = ShippingZone::query()->updateOrCreate(
             ['code' => 'PT_MAINLAND'],
             ['name' => 'Portugal Continental', 'active' => true, 'position' => 1]
@@ -114,4 +116,3 @@ class ShippingAndPaymentSeeder extends Seeder
         }
     }
 }
-

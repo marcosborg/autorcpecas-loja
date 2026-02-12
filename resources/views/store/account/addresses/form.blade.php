@@ -16,6 +16,15 @@
                             @if ($method !== 'POST')
                                 @method($method)
                             @endif
+                            @if ($errors->any())
+                                <div class="alert alert-danger">
+                                    <ul class="mb-0 ps-3">
+                                        @foreach ($errors->all() as $error)
+                                            <li>{{ $error }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
                             <div class="row g-3">
                                 <div class="col-12 col-md-4">
                                     <label class="form-label">Etiqueta</label>
@@ -32,7 +41,13 @@
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <label class="form-label">Telefone</label>
-                                    <input class="form-control" name="phone" value="{{ old('phone', $address->phone ?: auth()->user()->phone) }}">
+                                    @php($selectedCountryIso2 = old('country_iso2', $address->country_iso2 ?: ($defaultCountryIso2 ?? 'PT')))
+                                    @php($selectedCountry = collect($countries ?? [])->firstWhere('iso2', $selectedCountryIso2))
+                                    @php($defaultPhoneCode = $selectedCountry['phone_code'] ?? '+351')
+                                    <div class="input-group">
+                                        <input class="form-control" style="max-width: 110px" name="phone_country_code" value="{{ old('phone_country_code', $address->phone_country_code ?: $defaultPhoneCode) }}" placeholder="+351" required>
+                                        <input class="form-control" name="phone" value="{{ old('phone', $address->phone ?: auth()->user()->phone) }}" placeholder="912345678" required>
+                                    </div>
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <label class="form-label">Empresa</label>
@@ -41,6 +56,22 @@
                                 <div class="col-12 col-md-4">
                                     <label class="form-label">NIF</label>
                                     <input class="form-control" name="vat_number" value="{{ old('vat_number', $address->vat_number ?: auth()->user()->nif) }}">
+                                    @if ($address->exists || old('vat_number'))
+                                        @php($vatIsValid = old('vat_is_valid', $address->vat_is_valid))
+                                        @php($vatCheckedAt = old('vat_validated_at', optional($address->vat_validated_at)->format('Y-m-d H:i')))
+                                        <div class="mt-2">
+                                            @if ($vatIsValid === true || $vatIsValid === 1 || $vatIsValid === '1')
+                                                <span class="badge text-bg-success">VAT validado</span>
+                                            @elseif ($vatIsValid === false || $vatIsValid === 0 || $vatIsValid === '0')
+                                                <span class="badge text-bg-danger">VAT invalido</span>
+                                            @else
+                                                <span class="badge text-bg-secondary">VAT por validar</span>
+                                            @endif
+                                            @if (!empty($vatCheckedAt))
+                                                <small class="text-muted ms-2">Ultima validacao: {{ $vatCheckedAt }}</small>
+                                            @endif
+                                        </div>
+                                    @endif
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Morada</label>
@@ -64,7 +95,23 @@
                                 </div>
                                 <div class="col-12 col-md-2">
                                     <label class="form-label">Pais</label>
-                                    <input class="form-control text-uppercase" maxlength="2" name="country_iso2" value="{{ old('country_iso2', $address->country_iso2 ?: 'PT') }}" required>
+                                    <select class="form-select" name="country_iso2" required>
+                                        @foreach (($countries ?? []) as $country)
+                                            <option value="{{ $country['iso2'] }}" @selected($selectedCountryIso2 === $country['iso2'])>
+                                                {{ $country['name'] }} ({{ $country['iso2'] }})
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label">Zona de envio</label>
+                                    @php($selectedZoneCode = old('zone_code', $address->zone_code ?: 'PT_MAINLAND'))
+                                    <select class="form-select" name="zone_code">
+                                        <option value="">Automatica</option>
+                                        <option value="PT_MAINLAND" @selected($selectedZoneCode === 'PT_MAINLAND')>Portugal Continental</option>
+                                        <option value="PT_ISLANDS" @selected($selectedZoneCode === 'PT_ISLANDS')>Acores / Madeira</option>
+                                    </select>
+                                    <div class="form-text">Obrigatoria para Portugal. Para outros paises fica automatica.</div>
                                 </div>
                             </div>
                             <div class="mt-3 d-flex gap-3">
