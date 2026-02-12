@@ -34,10 +34,12 @@
                                         @if ($address->vat_number)
                                             <div class="small">NIF: {{ $address->vat_number }}</div>
                                             <div class="small mt-1">
-                                                @if ($address->vat_is_valid === true)
-                                                    <span class="badge text-bg-success">VAT validado</span>
+                                                @if (mb_strtoupper((string) $address->country_iso2, 'UTF-8') === 'PT')
+                                                    <span class="badge text-bg-info">NIF registado (sem isencao IVA em PT)</span>
+                                                @elseif ($address->vat_is_valid === true)
+                                                    <span class="badge text-bg-success">VAT elegivel para isencao</span>
                                                 @elseif ($address->vat_is_valid === false)
-                                                    <span class="badge text-bg-danger">VAT invalido</span>
+                                                    <span class="badge text-bg-warning">Sem elegibilidade para isencao IVA</span>
                                                 @else
                                                     <span class="badge text-bg-secondary">VAT por validar</span>
                                                 @endif

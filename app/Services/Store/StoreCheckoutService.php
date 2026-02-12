@@ -359,9 +359,11 @@ class StoreCheckoutService
                 'created_by_user_id' => $actorUserId,
             ]);
 
+            $this->orderEmails->sendPaymentUpdated($order->fresh(), null);
+
             return [
                 'message' => 'Usa os dados de transferencia para concluir o pagamento.',
-                'email_sent' => false,
+                'email_sent' => true,
             ];
         }
 

@@ -263,6 +263,48 @@ test('executes mbway payment flow and returns sibs redirect url', function () {
         ->and((string) data_get($order->payment_method_snapshot, 'sibs_execution.transaction_id'))->toBe('tx-mbway-123');
 });
 
+test('executes bank transfer flow and sends payment instructions email', function () {
+    Mail::fake();
+
+    $user = User::factory()->create([
+        'email' => 'cliente-transfer@example.com',
+    ]);
+
+    $order = Order::query()->create([
+        'user_id' => $user->id,
+        'order_number' => 'ORC-20260212-000891',
+        'status' => 'awaiting_payment',
+        'currency' => 'EUR',
+        'vat_rate' => 23,
+        'subtotal_ex_vat' => 20,
+        'shipping_ex_vat' => 5,
+        'payment_fee_ex_vat' => 0,
+        'total_ex_vat' => 25,
+        'total_inc_vat' => 30.75,
+        'shipping_address_snapshot' => ['country_iso2' => 'PT'],
+        'billing_address_snapshot' => ['country_iso2' => 'PT'],
+        'shipping_method_snapshot' => ['name' => 'DPD'],
+        'payment_method_snapshot' => [
+            'code' => 'bank_transfer',
+            'name' => 'Transferencia Bancaria',
+            'provider' => 'Pagamento manual',
+            'meta' => [
+                'gateway' => 'manual_bank_transfer',
+                'owner' => 'Auto RC Pecas',
+                'details' => 'IBAN PT50...',
+            ],
+        ],
+        'placed_at' => now(),
+    ]);
+
+    $result = app(StoreCheckoutService::class)->executeOrderPayment($order, (int) $user->id);
+
+    expect($result['email_sent'])->toBeTrue()
+        ->and((string) ($result['message'] ?? ''))->toContain('transferencia');
+
+    Mail::assertSent(OrderLifecycleMail::class);
+});
+
 test('syncs order addresses from current customer defaults when retrying payment', function () {
     $user = User::factory()->create();
 

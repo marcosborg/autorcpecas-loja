@@ -37,13 +37,25 @@ class VatValidationService
         $vatNumber = $hasPrefix ? substr($raw, 2) : $raw;
         $vatNumber = preg_replace('/[^A-Z0-9]/', '', $vatNumber) ?? '';
 
-        if ($vatCountry === 'PT' && ! $this->isValidPortugueseNif($vatNumber)) {
+        if ($vatCountry === 'PT') {
+            if (! $this->isValidPortugueseNif($vatNumber)) {
+                return [
+                    'vat_number' => $vatCountry.$vatNumber,
+                    'vat_country_iso2' => $vatCountry,
+                    'is_valid' => false,
+                    'checked' => true,
+                    'error' => 'NIF portugues com formato invalido.',
+                ];
+            }
+
+            // For Portuguese personal/company NIF, checksum validation is enough.
+            // It may be valid for invoicing but never grants VAT exemption by itself.
             return [
                 'vat_number' => $vatCountry.$vatNumber,
                 'vat_country_iso2' => $vatCountry,
                 'is_valid' => false,
                 'checked' => true,
-                'error' => 'NIF portugues invalido.',
+                'error' => null,
             ];
         }
 

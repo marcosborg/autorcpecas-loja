@@ -25,7 +25,7 @@ class OrderLifecycleMail extends Mailable
 
     public function envelope(): Envelope
     {
-        $subject = trim((string) ($this->context['subject'] ?? 'Atualização da sua encomenda'));
+        $subject = trim((string) ($this->context['subject'] ?? 'Atualizacao da sua encomenda'));
 
         return new Envelope(subject: $subject);
     }
@@ -41,4 +41,3 @@ class OrderLifecycleMail extends Mailable
         );
     }
 }
-

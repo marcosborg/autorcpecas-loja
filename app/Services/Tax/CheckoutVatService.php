@@ -23,6 +23,7 @@ class CheckoutVatService
     {
         $shippingIso2 = mb_strtoupper(trim((string) ($shippingSnapshot['country_iso2'] ?? 'PT')), 'UTF-8');
         $billingIso2 = mb_strtoupper(trim((string) ($billingSnapshot['country_iso2'] ?? $shippingIso2)), 'UTF-8');
+        $billingCompany = trim((string) ($billingSnapshot['company'] ?? ''));
 
         if ($shippingIso2 === 'PT') {
             return 23.0;
@@ -36,7 +37,14 @@ class CheckoutVatService
 
         $vatIsValid = (bool) ($billingSnapshot['vat_is_valid'] ?? false);
         $vatCountry = mb_strtoupper(trim((string) ($billingSnapshot['vat_country_iso2'] ?? '')), 'UTF-8');
-        if ($vatIsValid && $vatCountry !== '' && $vatCountry === $billingIso2 && $billingIso2 !== 'PT') {
+        if (
+            $vatIsValid
+            && $vatCountry !== ''
+            && $vatCountry === $billingIso2
+            && $billingIso2 !== 'PT'
+            && $billingIso2 === $shippingIso2
+            && $billingCompany !== ''
+        ) {
             return 0.0;
         }
 

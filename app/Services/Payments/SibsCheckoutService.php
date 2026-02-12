@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\PaymentMethod;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class SibsCheckoutService
 {
@@ -27,6 +28,7 @@ class SibsCheckoutService
 
         $meta = $this->resolveMeta($code, $snapshot);
         $clientId = trim((string) ($meta['client_id'] ?? ''));
+        $clientSecret = trim((string) ($meta['client_secret'] ?? ''));
         $terminalId = trim((string) ($meta['terminal_id'] ?? ''));
         $bearerToken = trim((string) ($meta['bearer_token'] ?? ''));
 
@@ -52,13 +54,18 @@ class SibsCheckoutService
 
         $authToken = preg_replace('/^Bearer\s+/i', '', $bearerToken) ?: $bearerToken;
 
+        $headers = [
+            'Authorization' => 'Bearer '.$authToken,
+            'X-IBM-Client-ID' => $clientId,
+            'X-IBM-Client-Id' => $clientId,
+            'Content-Type' => 'application/json;charset=UTF-8',
+        ];
+        if ($clientSecret !== '') {
+            $headers['X-IBM-Client-Secret'] = $clientSecret;
+        }
+
         $response = Http::timeout(30)
-            ->withHeaders([
-                'Authorization' => 'Bearer '.$authToken,
-                'X-IBM-Client-ID' => $clientId,
-                'X-IBM-Client-Id' => $clientId,
-                'Content-Type' => 'application/json;charset=UTF-8',
-            ])
+            ->withHeaders($headers)
             ->post($apiUrl, $payload);
 
         if (! $response->successful()) {
@@ -72,7 +79,21 @@ class SibsCheckoutService
                 ))
                 : '';
 
+            Log::warning('SIBS checkout failed', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'code' => $code,
+                'http_status' => $response->status(),
+                'server_mode' => $serverMode,
+                'api_url' => $apiUrl,
+                'status_msg' => $statusMsg,
+                'response_body' => $response->body(),
+            ]);
+
             $suffix = $statusMsg !== '' ? (' - '.$statusMsg) : '';
+            if ($response->status() === 401) {
+                $suffix .= ' - verifica server (TEST/LIVE), client_id, client_secret (se aplicavel) e bearer_token.';
+            }
             throw new \RuntimeException('Falha na comunicacao com a SIBS (HTTP '.$response->status().')'.$suffix.'.');
         }
 

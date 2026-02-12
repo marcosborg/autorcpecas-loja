@@ -56,22 +56,33 @@
                                 <div class="col-12 col-md-4">
                                     <label class="form-label">NIF</label>
                                     <input class="form-control" name="vat_number" value="{{ old('vat_number', $address->vat_number ?: auth()->user()->nif) }}">
-                                    @if ($address->exists || old('vat_number'))
-                                        @php($vatIsValid = old('vat_is_valid', $address->vat_is_valid))
-                                        @php($vatCheckedAt = old('vat_validated_at', optional($address->vat_validated_at)->format('Y-m-d H:i')))
-                                        <div class="mt-2">
-                                            @if ($vatIsValid === true || $vatIsValid === 1 || $vatIsValid === '1')
-                                                <span class="badge text-bg-success">VAT validado</span>
-                                            @elseif ($vatIsValid === false || $vatIsValid === 0 || $vatIsValid === '0')
-                                                <span class="badge text-bg-danger">VAT invalido</span>
+                                    @php($vatHasError = $errors->has('vat_number'))
+                                    @php($currentVatInput = trim((string) old('vat_number', $address->vat_number ?: '')))
+                                    @php($storedVat = trim((string) ($address->vat_number ?? '')))
+                                    @php($countryForVat = mb_strtoupper((string) old('country_iso2', $address->country_iso2 ?: 'PT'), 'UTF-8'))
+                                    @php($showStoredVatState = !$vatHasError && $currentVatInput !== '' && $storedVat !== '' && strcasecmp($currentVatInput, $storedVat) === 0)
+                                    <div class="mt-2">
+                                        @if ($vatHasError)
+                                            <span class="badge text-bg-danger">VAT invalido</span>
+                                        @elseif ($countryForVat === 'PT' && $currentVatInput !== '')
+                                            <span class="badge text-bg-info">NIF registado (sem isencao IVA em PT)</span>
+                                        @elseif ($showStoredVatState)
+                                            @php($vatIsValid = $address->vat_is_valid)
+                                            @php($vatCheckedAt = optional($address->vat_validated_at)->format('Y-m-d H:i'))
+                                            @if ($vatIsValid === true)
+                                                <span class="badge text-bg-success">VAT elegivel para isencao</span>
+                                            @elseif ($vatIsValid === false)
+                                                <span class="badge text-bg-warning">Sem elegibilidade para isencao IVA</span>
                                             @else
                                                 <span class="badge text-bg-secondary">VAT por validar</span>
                                             @endif
                                             @if (!empty($vatCheckedAt))
                                                 <small class="text-muted ms-2">Ultima validacao: {{ $vatCheckedAt }}</small>
                                             @endif
-                                        </div>
-                                    @endif
+                                        @elseif ($currentVatInput !== '')
+                                            <span class="badge text-bg-secondary">VAT por validar</span>
+                                        @endif
+                                    </div>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Morada</label>

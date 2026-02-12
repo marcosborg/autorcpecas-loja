@@ -23,9 +23,9 @@ Route::prefix('loja')->group(function () {
     Route::get('checkout/simulador', [\App\Http\Controllers\Store\StoreCheckoutSimulatorController::class, 'index']);
 
     Route::middleware('guest')->group(function () {
-        Route::get('conta/login', [\App\Http\Controllers\Store\StoreAuthController::class, 'showLogin']);
+        Route::get('conta/login', [\App\Http\Controllers\Store\StoreAuthController::class, 'showLogin'])->name('login');
         Route::post('conta/login', [\App\Http\Controllers\Store\StoreAuthController::class, 'login']);
-        Route::get('conta/registo', [\App\Http\Controllers\Store\StoreAuthController::class, 'showRegister']);
+        Route::get('conta/registo', [\App\Http\Controllers\Store\StoreAuthController::class, 'showRegister'])->name('register');
         Route::post('conta/registo', [\App\Http\Controllers\Store\StoreAuthController::class, 'register']);
     });
 

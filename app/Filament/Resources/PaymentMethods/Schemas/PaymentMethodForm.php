@@ -59,6 +59,10 @@ class PaymentMethodForm
                         TextInput::make('meta.client_id')
                             ->label('Client ID')
                             ->maxLength(255),
+                        TextInput::make('meta.client_secret')
+                            ->label('Client Secret')
+                            ->password()
+                            ->revealable(),
                         TextInput::make('meta.terminal_id')
                             ->label('Terminal ID')
                             ->maxLength(255),

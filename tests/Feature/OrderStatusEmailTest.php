@@ -66,7 +66,7 @@ test('does not send email when status stays the same', function () {
         'placed_at' => now(),
     ]);
 
-    $order->customer_note = 'AtualizaÃ§Ã£o sem mudar estado';
+    $order->customer_note = 'Atualizacao sem mudar estado';
     $order->save();
 
     Mail::assertNothingSent();
@@ -103,7 +103,7 @@ test('sends payment update email when order status changes to paid', function ()
 
     Mail::assertSent(OrderLifecycleMail::class, function (OrderLifecycleMail $mail) use ($order): bool {
         return $mail->order->is($order)
-            && ($mail->context['title'] ?? '') === 'AtualizaÃ§Ã£o de pagamento da encomenda';
+            && ($mail->context['title'] ?? '') === 'Atualizacao de pagamento da encomenda';
     });
 });
 

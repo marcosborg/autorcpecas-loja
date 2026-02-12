@@ -75,6 +75,7 @@ class PrestashopPaymentSyncService
         $sibsCommonMeta = [
             'gateway' => 'sibs',
             'client_id' => (string) ($config['SIBS_GENERAL_CLIENTID'] ?? ''),
+            'client_secret' => (string) ($config['SIBS_GENERAL_CLIENTSECRET'] ?? ''),
             'terminal_id' => (string) ($config['SIBS_GENERAL_TERMINALID'] ?? ''),
             'bearer_token' => (string) ($config['SIBS_GENERAL_BEARER'] ?? ''),
             'webhook_secret' => (string) ($config['SIBS_GENERAL_SECRET'] ?? ''),
@@ -204,7 +205,7 @@ class PrestashopPaymentSyncService
         $existing = is_array($existingMeta) ? $existingMeta : [];
 
         if (str_starts_with($code, 'sibs_')) {
-            foreach (['client_id', 'terminal_id', 'bearer_token', 'webhook_secret'] as $key) {
+            foreach (['client_id', 'client_secret', 'terminal_id', 'bearer_token', 'webhook_secret'] as $key) {
                 $newValue = trim((string) ($incoming[$key] ?? ''));
                 $oldValue = trim((string) ($existing[$key] ?? ''));
                 if ($newValue === '' && $oldValue !== '') {

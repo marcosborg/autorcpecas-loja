@@ -59,8 +59,8 @@ class OrderEmailService
         }
 
         $context = [
-            'subject' => 'AtualizaÃ§Ã£o de pagamento: '.$order->order_number,
-            'title' => 'AtualizaÃ§Ã£o de pagamento da encomenda',
+            'subject' => 'Atualizacao de pagamento: '.$order->order_number,
+            'title' => 'Atualizacao de pagamento da encomenda',
             'intro' => 'Temos uma atualizacao sobre o pagamento da tua encomenda.',
             'highlight' => $highlight,
             'button_label' => 'Ver detalhe de pagamento',

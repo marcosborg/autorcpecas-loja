@@ -1,6 +1,6 @@
 @php
-    $appName = config('app.name', 'Auto RC Peças');
-    $title = (string) ($context['title'] ?? 'Atualização da sua encomenda');
+    $appName = config('app.name', 'Auto RC Pecas');
+    $title = (string) ($context['title'] ?? 'Atualizacao da sua encomenda');
     $intro = trim((string) ($context['intro'] ?? ''));
     $highlight = trim((string) ($context['highlight'] ?? ''));
     $buttonLabel = trim((string) ($context['button_label'] ?? 'Ver encomenda'));
@@ -22,7 +22,7 @@
                 <tr>
                     <td style="background:#700000;padding:18px 22px;color:#ffffff;">
                         <div style="font-size:20px;font-weight:700;line-height:1.2;">{{ $appName }}</div>
-                        <div style="font-size:13px;opacity:.92;line-height:1.4;margin-top:4px;">Notificação de encomenda</div>
+                        <div style="font-size:13px;opacity:.92;line-height:1.4;margin-top:4px;">Notificacao de encomenda</div>
                     </td>
                 </tr>
                 <tr>
@@ -61,13 +61,13 @@
                         </div>
 
                         <p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:#7a7a7a;">
-                            Se tiveres dúvidas, responde a este email ou contacta-nos em marketing@autorcpecas.pt.
+                            Se tiveres duvidas, responde a este email ou contacta-nos em marketing@autorcpecas.pt.
                         </p>
                     </td>
                 </tr>
                 <tr>
                     <td style="padding:14px 22px;border-top:1px solid #efefef;background:#fafafa;font-size:12px;color:#808080;">
-                        © {{ date('Y') }} {{ $appName }}. Todos os direitos reservados.
+                        &copy; {{ date('Y') }} {{ $appName }}. Todos os direitos reservados.
                     </td>
                 </tr>
             </table>
@@ -76,4 +76,3 @@
 </table>
 </body>
 </html>
-

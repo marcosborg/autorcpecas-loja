@@ -135,11 +135,6 @@ class StoreAddressController extends Controller
 
         $vatInput = (string) ($data['vat_number'] ?? '');
         $vatResult = $this->vatValidation->validate((string) $data['country_iso2'], $vatInput);
-        if (trim($vatInput) !== '' && $vatResult['is_valid'] === false) {
-            throw ValidationException::withMessages([
-                'vat_number' => $vatResult['error'] ?: 'NIF/VAT invalido.',
-            ]);
-        }
         $data['vat_number'] = $vatResult['vat_number'] !== '' ? $vatResult['vat_number'] : null;
         $data['vat_country_iso2'] = $vatResult['vat_country_iso2'];
         $data['vat_is_valid'] = $vatResult['is_valid'];

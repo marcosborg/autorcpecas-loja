@@ -53,7 +53,7 @@ class CheckoutVatServiceTest extends TestCase
         $service = app(CheckoutVatService::class);
         $rate = $service->resolveVatRateFromSnapshot(
             ['country_iso2' => 'ES'],
-            ['country_iso2' => 'ES', 'vat_is_valid' => true, 'vat_country_iso2' => 'ES']
+            ['country_iso2' => 'ES', 'company' => 'Empresa Exemplo SL', 'vat_is_valid' => true, 'vat_country_iso2' => 'ES']
         );
 
         $this->assertSame(0.0, $rate);
