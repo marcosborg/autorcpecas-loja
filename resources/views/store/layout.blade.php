@@ -707,15 +707,63 @@
 
         var input = form.querySelector('input[name="q"]');
         var menu = form.querySelector('[data-ref-suggestions]');
+        var searchSplit = form.closest('.search-split');
+        var filterSelect = searchSplit
+            ? searchSplit.querySelector('select.store-filter-select')
+            : document.querySelector('select.store-filter-select');
+        var filterDefaultValue = (filterSelect && filterSelect.options.length > 0)
+            ? String(filterSelect.options[0].value || '')
+            : '';
         var endpoint = form.getAttribute('data-autocomplete-url') || '';
         if (!input || !menu || endpoint === '') return;
 
         var debounceTimer = null;
         var abortController = null;
+        var lastFilterSearchTerm = '';
 
         function hideMenu() {
             menu.classList.remove('is-visible');
             menu.innerHTML = '';
+        }
+
+        function normalizeText(value) {
+            return String(value || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .trim();
+        }
+
+        function resolveFilterUrlFromTypedTerm() {
+            if (!filterSelect || filterSelect.options.length <= 1) return '';
+
+            var liveSearchField = document.querySelector('.select2-container--open .select2-search__field');
+            var typedTerm = normalizeText(liveSearchField ? liveSearchField.value : lastFilterSearchTerm);
+            if (typedTerm.length < 2) return '';
+
+            var startsWithMatch = '';
+            var containsMatch = '';
+
+            for (var i = 1; i < filterSelect.options.length; i++) {
+                var option = filterSelect.options[i];
+                var label = normalizeText(option.text || '');
+                var value = String(option.value || '');
+                if (!label || !value) continue;
+
+                if (label === typedTerm) {
+                    return value;
+                }
+
+                if (!startsWithMatch && label.indexOf(typedTerm) === 0) {
+                    startsWithMatch = value;
+                }
+
+                if (!containsMatch && label.indexOf(typedTerm) !== -1) {
+                    containsMatch = value;
+                }
+            }
+
+            return startsWithMatch || containsMatch;
         }
 
         function renderMenu(items) {
@@ -785,6 +833,29 @@
             }, 250);
         });
 
+        form.addEventListener('submit', function (event) {
+            var query = String(input.value || '').trim();
+            if (query !== '') return;
+
+            hideMenu();
+
+            var filterUrl = filterSelect ? String(filterSelect.value || '') : '';
+            if (!filterUrl || filterUrl === filterDefaultValue) {
+                filterUrl = resolveFilterUrlFromTypedTerm();
+            }
+
+            if (filterUrl && filterUrl !== filterDefaultValue) {
+                event.preventDefault();
+                window.location.href = filterUrl;
+            }
+        });
+
+        document.addEventListener('input', function (event) {
+            var target = event.target;
+            if (!target || !target.matches || !target.matches('.select2-search__field')) return;
+            lastFilterSearchTerm = String(target.value || '');
+        });
+
         menu.addEventListener('click', function (event) {
             var button = event.target.closest('button[data-url]');
             if (!button) return;
@@ -806,6 +877,12 @@
                 menu.classList.add('is-visible');
             }
         });
+
+        if (filterSelect) {
+            filterSelect.addEventListener('change', function () {
+                lastFilterSearchTerm = '';
+            });
+        }
     })();
 
     (function () {
