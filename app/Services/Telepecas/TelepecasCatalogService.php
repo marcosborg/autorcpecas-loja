@@ -494,24 +494,11 @@ class TelepecasCatalogService implements CatalogProvider
         /** @var list<array<string, mixed>> $products */
         $products = $this->indexProducts();
 
-        $q = mb_strtolower($query);
+        $q = mb_strtolower($query, 'UTF-8');
+        $terms = $this->searchTerms($q);
 
         $matching = collect($products)
-            ->filter(function (array $product) use ($q): bool {
-                $haystacks = [
-                    (string) ($product['reference'] ?? ''),
-                    (string) ($product['title'] ?? ''),
-                    (string) ($product['category'] ?? ''),
-                ];
-
-                foreach ($haystacks as $haystack) {
-                    if ($haystack !== '' && str_contains(mb_strtolower($haystack), $q)) {
-                        return true;
-                    }
-                }
-
-                return false;
-            })
+            ->filter(fn (array $product): bool => $this->matchesBroadSearch($product, $q, $terms))
             ->values();
 
         $total = $matching->count();
@@ -527,6 +514,63 @@ class TelepecasCatalogService implements CatalogProvider
                 'query' => request()->query(),
             ],
         );
+    }
+
+    /**
+     * @param  list<string>  $terms
+     */
+    private function matchesBroadSearch(array $product, string $query, array $terms): bool
+    {
+        $text = $this->searchableText($product);
+        if ($text === '') {
+            return false;
+        }
+
+        // Fast path for single contiguous query hit.
+        if (str_contains($text, $query)) {
+            return true;
+        }
+
+        if (count($terms) === 0) {
+            return false;
+        }
+
+        foreach ($terms as $term) {
+            if (! str_contains($text, $term)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $product
+     */
+    private function searchableText(array $product): string
+    {
+        $fields = [
+            (string) ($product['id'] ?? ''),
+            (string) ($product['reference'] ?? ''),
+            (string) ($product['title'] ?? ''),
+            (string) ($product['category'] ?? ''),
+            (string) ($product['make_name'] ?? ''),
+            (string) ($product['model_name'] ?? ''),
+        ];
+
+        return mb_strtolower(trim(implode(' ', $fields)), 'UTF-8');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function searchTerms(string $query): array
+    {
+        $rawTerms = preg_split('/[^\pL\pN]+/u', $query) ?: [];
+        $terms = array_values(array_filter($rawTerms, static fn ($term): bool => is_string($term) && $term !== ''));
+        $longTerms = array_values(array_filter($terms, static fn (string $term): bool => mb_strlen($term, 'UTF-8') >= 2));
+
+        return count($longTerms) > 0 ? $longTerms : $terms;
     }
 
     /**

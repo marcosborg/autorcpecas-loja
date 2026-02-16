@@ -413,10 +413,10 @@
 
                     <form class="search-form d-flex flex-grow-1 gap-2" action="{{ url('/loja/pesquisa') }}" method="get" role="search" data-autocomplete-url="{{ url('/loja/pesquisa/sugestoes') }}">
                         <div class="autocomplete-wrap flex-grow-1">
-                            <input class="form-control" type="search" name="q" value="{{ request('q') }}" placeholder="Procurar por refer&ecirc;ncia" aria-label="Procurar por refer&ecirc;ncia" autocomplete="off">
-                            <div class="autocomplete-menu" data-ref-suggestions role="listbox" aria-label="Sugest&otilde;es de refer&ecirc;ncia"></div>
+                            <input class="form-control" type="search" name="q" value="{{ request('q') }}" placeholder="Procurar por refer&ecirc;ncia, marca ou nome da pe&ccedil;a" aria-label="Procurar por refer&ecirc;ncia, marca ou nome da pe&ccedil;a" autocomplete="off">
+                            <div class="autocomplete-menu" data-ref-suggestions role="listbox" aria-label="Sugest&otilde;es de pesquisa"></div>
                         </div>
-                        <button class="btn btn-light px-3" type="submit" aria-label="Pesquisar refer&ecirc;ncia">
+                        <button class="btn btn-light px-3" type="submit" aria-label="Pesquisar">
                             Pesquisar
                         </button>
                     </form>

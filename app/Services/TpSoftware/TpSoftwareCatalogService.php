@@ -492,25 +492,11 @@ class TpSoftwareCatalogService implements CatalogProvider
             }
         }
 
-        $q = mb_strtolower($query);
+        $q = mb_strtolower($query, 'UTF-8');
+        $terms = $this->searchTerms($q);
 
         $matching = collect($indexed)
-            ->filter(function (array $p) use ($q): bool {
-                $haystacks = [
-                    (string) ($p['reference'] ?? ''),
-                    (string) ($p['title'] ?? ''),
-                    (string) ($p['make_name'] ?? ''),
-                    (string) ($p['model_name'] ?? ''),
-                ];
-
-                foreach ($haystacks as $haystack) {
-                    if ($haystack !== '' && str_contains(mb_strtolower($haystack), $q)) {
-                        return true;
-                    }
-                }
-
-                return false;
-            })
+            ->filter(fn (array $p): bool => $this->matchesBroadSearch($p, $q, $terms))
             ->values();
 
         $total = $matching->count();
@@ -525,6 +511,68 @@ class TpSoftwareCatalogService implements CatalogProvider
             'path' => url('/loja/pesquisa'),
             'query' => request()->query(),
         ]);
+    }
+
+    /**
+     * @param  list<string>  $terms
+     */
+    private function matchesBroadSearch(array $product, string $query, array $terms): bool
+    {
+        $text = $this->searchableText($product);
+        if ($text === '') {
+            return false;
+        }
+
+        // Fast path for contiguous phrase matches.
+        if (str_contains($text, $query)) {
+            return true;
+        }
+
+        if (count($terms) === 0) {
+            return false;
+        }
+
+        foreach ($terms as $term) {
+            if (! str_contains($text, $term)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $product
+     */
+    private function searchableText(array $product): string
+    {
+        $fields = [
+            (string) ($product['id'] ?? ''),
+            (string) ($product['reference'] ?? ''),
+            (string) ($product['tp_reference'] ?? ''),
+            (string) ($product['title'] ?? ''),
+            (string) ($product['category'] ?? ''),
+            (string) ($product['make_name'] ?? ''),
+            (string) ($product['model_name'] ?? ''),
+            (string) ($product['state_name'] ?? ''),
+            (string) ($product['condition_name'] ?? ''),
+            (string) ($product['fuel_type'] ?? ''),
+            (string) ($product['engine_label'] ?? ''),
+        ];
+
+        return mb_strtolower(trim(implode(' ', $fields)), 'UTF-8');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function searchTerms(string $query): array
+    {
+        $rawTerms = preg_split('/[^\pL\pN]+/u', $query) ?: [];
+        $terms = array_values(array_filter($rawTerms, static fn ($term): bool => is_string($term) && $term !== ''));
+        $longTerms = array_values(array_filter($terms, static fn (string $term): bool => mb_strlen($term, 'UTF-8') >= 2));
+
+        return count($longTerms) > 0 ? $longTerms : $terms;
     }
 
     private function isLikelyReferenceQuery(string $query): bool
