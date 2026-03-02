@@ -37,6 +37,10 @@ class StoreCategoryController extends Controller
             'selectedState' => null,
             'selectedCondition' => null,
             'selectedPrice' => null,
+            'metaTitle' => 'Loja de Pecas Auto Usadas',
+            'metaDescription' => 'Explore o catalogo de pecas auto usadas e salvadas da Auto RC Pecas.',
+            'metaCanonical' => url('/loja'),
+            'metaRobots' => $page > 1 ? 'noindex,follow' : 'index,follow',
         ]);
     }
 
@@ -80,6 +84,12 @@ class StoreCategoryController extends Controller
             'selectedPrice' => (string) $request->query('price', ''),
             'facets' => (array) ($data['meta']['facets'] ?? []),
             'totalProducts' => $catalog->totalProducts(),
+            'metaTitle' => $modelName ? ($data['categoryName'].' - '.$modelName) : (string) $data['categoryName'],
+            'metaDescription' => $modelName
+                ? 'Pecas usadas para '.$data['categoryName'].' '.$modelName.'.'
+                : 'Pecas usadas para '.$data['categoryName'].'.',
+            'metaCanonical' => $request->url().($request->except('page') ? ('?'.http_build_query($request->except('page'))) : ''),
+            'metaRobots' => $page > 1 ? 'noindex,follow' : 'index,follow',
         ]);
     }
 }

@@ -134,6 +134,58 @@
             </div>
         @endif
 
+        @if (!empty($dbStatus['sitemap'] ?? null))
+            @php($sm = $dbStatus['sitemap'])
+            <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
+                <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">SEO - Sitemap</div>
+
+                @php($tone = $sm['status_tone'] ?? 'gray')
+                @php($badgeClasses = match($tone) {
+                    'success' => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300',
+                    'info' => 'bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-300',
+                    'warning' => 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300',
+                    'danger' => 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300',
+                    default => 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300',
+                })
+
+                <div class="text-sm text-gray-700 dark:text-gray-200">
+                    <div class="mb-2">
+                        <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold {{ $badgeClasses }}">
+                            {{ $sm['status_label'] ?? ($sm['status'] ?? 'n/a') }}
+                        </span>
+                    </div>
+                    <div><span class="font-semibold">Status tecnico:</span> {{ $sm['status'] ?? 'n/a' }}</div>
+                    @if (!empty($sm['started_at'] ?? null))
+                        <div><span class="font-semibold">Iniciado:</span> {{ $sm['started_at'] }}</div>
+                    @endif
+                    @if (!empty($sm['finished_at'] ?? null))
+                        <div><span class="font-semibold">Terminado:</span> {{ $sm['finished_at'] }}</div>
+                    @endif
+                    @if (!empty($sm['result']['path'] ?? null))
+                        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            ficheiro: {{ $sm['result']['path'] }}
+                        </div>
+                    @endif
+                    @if (!empty($sm['result']['total_urls'] ?? null))
+                        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            total: {{ $sm['result']['total_urls'] }} | produtos: {{ $sm['result']['product_urls'] ?? 0 }} | categorias: {{ $sm['result']['category_urls'] ?? 0 }} | cms: {{ $sm['result']['cms_urls'] ?? 0 }}
+                        </div>
+                    @endif
+                    @if (!empty($sm['error'] ?? null))
+                        <div class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $sm['error'] }}</div>
+                    @endif
+                    @if (!empty($sm['stalled_warning'] ?? null))
+                        <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                            {{ $sm['stalled_warning'] }}
+                        </div>
+                    @endif
+                    <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                        Atualizacao automatica a cada 5s.
+                    </div>
+                </div>
+            </div>
+        @endif
+
         @if (!empty($lastOutput))
             <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
                 <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Último output</div>

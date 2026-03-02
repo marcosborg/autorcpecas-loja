@@ -3,7 +3,40 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $title ?? 'Loja' }}</title>
+    @php
+        $appName = (string) config('app.name', 'Auto RC Pecas');
+        $metaTitleBase = trim((string) ($metaTitle ?? $title ?? 'Loja'));
+        if ($metaTitleBase === '') {
+            $metaTitleBase = 'Loja';
+        }
+        $metaTitle = str_contains(mb_strtolower($metaTitleBase, 'UTF-8'), mb_strtolower($appName, 'UTF-8'))
+            ? $metaTitleBase
+            : $metaTitleBase.' | '.$appName;
+        $metaDescription = trim((string) ($metaDescription ?? 'Loja online de pecas auto usadas e salvadas, com envios para todo o pais.'));
+        $metaDescription = \Illuminate\Support\Str::limit(preg_replace('/\s+/u', ' ', strip_tags($metaDescription)) ?? '', 170, '');
+        $metaCanonical = trim((string) ($metaCanonical ?? request()->url()));
+        if ($metaCanonical === '') {
+            $metaCanonical = request()->fullUrl();
+        }
+        $metaImage = trim((string) ($metaImage ?? asset('assets/img/logo.png')));
+        $metaRobots = trim((string) ($metaRobots ?? 'index,follow'));
+        $metaType = trim((string) ($metaType ?? 'website'));
+    @endphp
+    <title>{{ $metaTitle }}</title>
+    <meta name="description" content="{{ $metaDescription }}">
+    <meta name="robots" content="{{ $metaRobots }}">
+    <link rel="canonical" href="{{ $metaCanonical }}">
+    <meta property="og:locale" content="pt_PT">
+    <meta property="og:type" content="{{ $metaType }}">
+    <meta property="og:site_name" content="{{ $appName }}">
+    <meta property="og:title" content="{{ $metaTitle }}">
+    <meta property="og:description" content="{{ $metaDescription }}">
+    <meta property="og:url" content="{{ $metaCanonical }}">
+    <meta property="og:image" content="{{ $metaImage }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ $metaTitle }}">
+    <meta name="twitter:description" content="{{ $metaDescription }}">
+    <meta name="twitter:image" content="{{ $metaImage }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet">

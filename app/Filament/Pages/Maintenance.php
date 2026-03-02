@@ -189,6 +189,33 @@ class Maintenance extends Page
                         ->send();
                 }),
 
+            Action::make('generateSitemap')
+                ->label('Gerar sitemap')
+                ->icon('heroicon-o-map')
+                ->color('success')
+                ->form([
+                    TextInput::make('max_products')
+                        ->label('Max produtos no sitemap')
+                        ->numeric()
+                        ->default(50000)
+                        ->required()
+                        ->minValue(100)
+                        ->maxValue(100000),
+                ])
+                ->requiresConfirmation()
+                ->action(function (array $data): void {
+                    $maxProducts = (int) ($data['max_products'] ?? 50000);
+
+                    $this->runArtisanCommand(
+                        titleOnSuccess: 'Sitemap gerado',
+                        titleOnFail: 'Falha a gerar sitemap',
+                        command: 'seo:sitemap:generate',
+                        arguments: [
+                            '--max-products' => $maxProducts,
+                        ],
+                    );
+                }),
+
             Action::make('dbSwitchSandbox')
                 ->label('Usar Sandbox DB')
                 ->icon('heroicon-o-beaker')
@@ -321,6 +348,8 @@ class Maintenance extends Page
 
         $tpsoftwareIndex = $this->readLocalJson('maintenance/tpsoftware-index.json');
         $tpsoftwareIndex = $this->normalizeIndexStatus($tpsoftwareIndex);
+        $sitemap = $this->readLocalJson('maintenance/sitemap.json');
+        $sitemap = $this->normalizeSimpleStatus($sitemap, 'Sitemap');
 
         $this->dbStatus = [
             'mode' => $env->getMode(),
@@ -328,6 +357,7 @@ class Maintenance extends Page
             'sandbox' => $this->connectionSummary('sandbox'),
             'production' => $this->connectionSummary('production'),
             'tpsoftware_index' => $tpsoftwareIndex,
+            'sitemap' => $sitemap,
             'queue' => $this->queueSummary(),
         ];
     }
@@ -410,6 +440,47 @@ class Maintenance extends Page
         $queuedSince = $this->minutesSince((string) ($status['queued_at'] ?? ''));
         if ($raw === 'queued' && $queuedSince !== null && $queuedSince >= 2) {
             $status['stalled_warning'] = 'Index em fila ha '.$queuedSince.' min. Processa a fila nos botoes acima.';
+        }
+
+        $status['status'] = $raw;
+        $status['status_label'] = $label;
+        $status['status_tone'] = $tone;
+
+        return $status;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $status
+     * @return array<string, mixed>|null
+     */
+    private function normalizeSimpleStatus(?array $status, string $labelName): ?array
+    {
+        if (! is_array($status)) {
+            return null;
+        }
+
+        $raw = strtolower(trim((string) ($status['status'] ?? 'idle')));
+        if ($raw === '') {
+            $raw = 'idle';
+        }
+
+        $label = match ($raw) {
+            'running' => 'A correr',
+            'ok' => 'Concluido',
+            'error' => 'Erro',
+            default => 'Parado',
+        };
+
+        $tone = match ($raw) {
+            'running' => 'info',
+            'ok' => 'success',
+            'error' => 'danger',
+            default => 'gray',
+        };
+
+        $runningSince = $this->minutesSince((string) ($status['started_at'] ?? ''));
+        if ($raw === 'running' && $runningSince !== null && $runningSince >= 10) {
+            $status['stalled_warning'] = $labelName.' em running ha '.$runningSince.' min.';
         }
 
         $status['status'] = $raw;

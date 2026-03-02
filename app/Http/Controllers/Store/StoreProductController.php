@@ -26,9 +26,38 @@ class StoreProductController extends Controller
             abort(404);
         }
 
+        $title = trim((string) ($product['title'] ?? 'Produto'));
+        $make = trim((string) ($product['make_name'] ?? $product['category'] ?? ''));
+        $model = trim((string) ($product['model_name'] ?? ''));
+        $reference = trim((string) ($product['reference'] ?? ''));
+        $descriptionParts = array_values(array_filter([
+            $title,
+            $make !== '' ? 'Marca: '.$make : null,
+            $model !== '' ? 'Modelo: '.$model : null,
+            $reference !== '' ? 'Ref: '.$reference : null,
+        ]));
+        $description = implode(' | ', $descriptionParts);
+
+        $metaImage = (string) ($product['cover_image'] ?? '');
+        if ($metaImage === '') {
+            $images = $product['images'] ?? [];
+            if (is_array($images) && isset($images[0]) && is_string($images[0])) {
+                $metaImage = $images[0];
+            }
+        }
+        if ($metaImage === '') {
+            $metaImage = asset('assets/img/logo.png');
+        }
+
         return view('store.product', [
             'product' => $product,
             'headerCategories' => $headerCategories ?? [],
+            'metaTitle' => $title,
+            'metaDescription' => $description,
+            'metaCanonical' => url('/loja/produtos/'.urlencode($idOrReference)),
+            'metaImage' => $metaImage,
+            'metaType' => 'product',
+            'metaRobots' => 'index,follow',
         ]);
     }
 

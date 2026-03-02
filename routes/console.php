@@ -2,6 +2,7 @@
 
 use App\Jobs\ReindexTpSoftware;
 use App\Models\User;
+use App\Services\Seo\SitemapGenerator;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -79,6 +80,58 @@ Artisan::command('tpsoftware:index:queue {--force : Recria o indice}', function 
 
     return 0;
 })->purpose('Enfileira reindex TP Software (com lock para evitar duplicados)');
+
+Artisan::command('seo:sitemap:generate {--max-products=50000 : Maximo de produtos no sitemap}', function () {
+    $startedAt = now()->toIso8601String();
+
+    Storage::disk('local')->put(
+        'maintenance/sitemap.json',
+        json_encode([
+            'status' => 'running',
+            'started_at' => $startedAt,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+    );
+
+    try {
+        /** @var SitemapGenerator $generator */
+        $generator = app(SitemapGenerator::class);
+        $maxProducts = (int) $this->option('max-products');
+        $result = $generator->generate($maxProducts);
+
+        Storage::disk('local')->put(
+            'maintenance/sitemap.json',
+            json_encode([
+                'status' => 'ok',
+                'started_at' => $startedAt,
+                'finished_at' => now()->toIso8601String(),
+                'result' => $result,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+
+        $this->info('Sitemap gerado com sucesso.');
+        $this->line('Ficheiro: '.$result['path']);
+        $this->line('Total URLs: '.$result['total_urls']);
+        $this->line('Produtos: '.$result['product_urls']);
+        $this->line('Categorias: '.$result['category_urls']);
+        $this->line('CMS: '.$result['cms_urls']);
+
+        return 0;
+    } catch (Throwable $e) {
+        Storage::disk('local')->put(
+            'maintenance/sitemap.json',
+            json_encode([
+                'status' => 'error',
+                'started_at' => $startedAt,
+                'finished_at' => now()->toIso8601String(),
+                'error' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+
+        $this->error($e->getMessage());
+
+        return 1;
+    }
+})->purpose('Gera sitemap.xml para SEO');
 
 $scheduleEnabled = filter_var(env('TPSOFTWARE_INDEX_SCHEDULE_ENABLED', true), FILTER_VALIDATE_BOOL);
 $scheduleEveryMinutes = (int) env('TPSOFTWARE_INDEX_SCHEDULE_EVERY_MINUTES', 15);

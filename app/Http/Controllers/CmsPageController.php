@@ -21,6 +21,11 @@ class CmsPageController extends Controller
         return view('pages.cms', [
             'page' => $page,
             'title' => $page->title,
+            'metaTitle' => (string) $page->title,
+            'metaDescription' => trim((string) preg_replace('/\s+/u', ' ', strip_tags((string) ($page->content ?? '')))),
+            'metaCanonical' => url('/pagina/'.$page->slug),
+            'metaImage' => $page->featured_image_path ? asset('storage/'.ltrim((string) $page->featured_image_path, '/')) : asset('assets/img/logo.png'),
+            'metaRobots' => 'index,follow',
         ]);
     }
 

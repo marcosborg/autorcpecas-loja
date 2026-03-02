@@ -11,6 +11,9 @@ class TpSoftwareCatalogService implements CatalogProvider
 {
     /** @var array<string, int>|null */
     private ?array $indexPositionMap = null;
+    /** @var list<array<string, mixed>>|null */
+    private ?array $indexedProductsCache = null;
+    private bool $indexedProductsLoaded = false;
 
     public function __construct(
         private readonly TpSoftwareClient $client,
@@ -90,15 +93,22 @@ class TpSoftwareCatalogService implements CatalogProvider
     {
         if ((bool) config('tpsoftware.catalog.index_enabled', true)) {
             $indexed = $this->indexedProducts();
-
             if ($indexed !== null) {
-                /** @var array<string, string> $names */
-                $names = [];
+                $cache = Cache::store((string) config('tpsoftware.cache_store', 'file'));
+                $ttl = (int) config('tpsoftware.catalog.index_ttl_seconds', 1800);
+                $ttl = max(60, $ttl);
 
-                foreach ($indexed as $p) {
-                    $make = (string) ($p['make_name'] ?? $p['category'] ?? '');
+                return $cache->remember('tpsoftware:catalog:makes:indexed:v1', $ttl, function () use ($indexed) {
+                    /** @var array<string, string> $names */
+                    $names = [];
 
-                    if ($make !== '') {
+                    foreach ($indexed as $p) {
+                        $make = (string) ($p['make_name'] ?? $p['category'] ?? '');
+
+                        if ($make === '') {
+                            continue;
+                        }
+
                         $make = trim($make);
                         $key = mb_strtolower($make, 'UTF-8');
                         if ($key === '') {
@@ -109,27 +119,27 @@ class TpSoftwareCatalogService implements CatalogProvider
                             $names[$key] = $this->formatMakeName($make);
                         }
                     }
-                }
 
-                $cats = [];
+                    $cats = [];
 
-                foreach (array_values($names) as $name) {
-                    $slug = Str::slug($name);
+                    foreach (array_values($names) as $name) {
+                        $slug = Str::slug($name);
 
-                    if ($slug === '') {
-                        continue;
+                        if ($slug === '') {
+                            continue;
+                        }
+
+                        $cats[] = [
+                            'slug' => $slug,
+                            'name' => $name,
+                            'count' => null,
+                        ];
                     }
 
-                    $cats[] = [
-                        'slug' => $slug,
-                        'name' => $name,
-                        'count' => null,
-                    ];
-                }
+                    usort($cats, fn ($a, $b) => strnatcasecmp($a['name'], $b['name']));
 
-                usort($cats, fn ($a, $b) => strnatcasecmp($a['name'], $b['name']));
-
-                return $cats;
+                    return $cats;
+                });
             }
         }
 
@@ -418,10 +428,12 @@ class TpSoftwareCatalogService implements CatalogProvider
                 $ref = (string) (($p['reference'] ?? '') ?: '');
 
                 if ($id === $idOrReference || ($ref !== '' && strcasecmp($ref, $idOrReference) === 0)) {
-                    $raw = $this->fetchProductRawByIdOrReference($idOrReference, is_int($idx) ? $idx : null);
+                    if ((bool) config('tpsoftware.catalog.product_live_details_enabled', false)) {
+                        $raw = $this->fetchProductRawByIdOrReference($idOrReference, is_int($idx) ? $idx : null);
 
-                    if (is_array($raw)) {
-                        return $this->normalizeProduct($raw, includeRaw: true);
+                        if (is_array($raw)) {
+                            return $this->normalizeProduct($raw, includeRaw: true);
+                        }
                     }
 
                     return $this->withCoverImage($p);
@@ -1647,7 +1659,14 @@ class TpSoftwareCatalogService implements CatalogProvider
             return null;
         }
 
-        return $this->indexStore->load();
+        if ($this->indexedProductsLoaded) {
+            return $this->indexedProductsCache;
+        }
+
+        $this->indexedProductsCache = $this->indexStore->load();
+        $this->indexedProductsLoaded = true;
+
+        return $this->indexedProductsCache;
     }
 
     /**

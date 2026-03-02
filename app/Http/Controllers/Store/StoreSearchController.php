@@ -26,6 +26,12 @@ class StoreSearchController extends Controller
             'q' => $q,
             'results' => $results,
             'headerCategories' => $headerCategories ?? [],
+            'metaTitle' => $q !== '' ? ('Pesquisa: '.$q) : 'Pesquisa de pecas',
+            'metaDescription' => $q !== ''
+                ? ('Resultados de pesquisa para "'.$q.'" na loja Auto RC Pecas.')
+                : 'Pesquise por referencia, marca ou nome da peca na loja Auto RC Pecas.',
+            'metaCanonical' => url('/loja/pesquisa'),
+            'metaRobots' => 'noindex,follow',
         ]);
     }
 

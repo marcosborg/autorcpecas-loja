@@ -45,6 +45,7 @@ return [
         'price_fallback_max_lookups' => (int) env('TPSOFTWARE_PRICE_FALLBACK_MAX_LOOKUPS', 12),
         // Valida referencia exata contra API live (mais rigor, mais latencia).
         'live_reference_validation_enabled' => env('TPSOFTWARE_LIVE_REFERENCE_VALIDATION_ENABLED', false),
+        'product_live_details_enabled' => env('TPSOFTWARE_PRODUCT_LIVE_DETAILS_ENABLED', false),
 
         // Campo usado como "categoria" na vitrine (por defeito marca do veículo)
         'category_field' => env('TPSOFTWARE_CATEGORY_FIELD', 'vehicle_make_name'),

@@ -48,6 +48,10 @@ class HomeController extends Controller
             'brands' => $brands,
             'products' => $products,
             'headerCategories' => $categories,
+            'metaTitle' => 'Pecas Auto Usadas',
+            'metaDescription' => 'Auto RC Pecas: pecas auto usadas e salvadas, com envio rapido e apoio especializado.',
+            'metaCanonical' => url('/'),
+            'metaRobots' => 'index,follow',
         ]);
     }
 }

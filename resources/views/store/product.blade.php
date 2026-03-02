@@ -5,11 +5,37 @@
     @php($model = (string) ($product['model_name'] ?? ''))
     @php($images = array_values(array_filter($product['images'] ?? [], fn ($u) => is_string($u) && $u !== '')))
     @php($cover = (string) ($product['cover_image'] ?? ''))
+    @php($priceExVatForSchema = $product['price_ex_vat'] ?? ($product['price'] ?? null))
+    @php($productUrlForSchema = url('/loja/produtos/'.urlencode((string) (($product['id'] ?? null) ?: ($product['reference'] ?? '')))))
+    @php($schemaData = [
+        '@context' => 'https://schema.org',
+        '@type' => 'Product',
+        'name' => (string) ($product['title'] ?? 'Produto'),
+        'sku' => (string) ($product['reference'] ?? ''),
+        'image' => $images,
+        'description' => trim((string) ($product['title'] ?? '')),
+        'brand' => [
+            '@type' => 'Brand',
+            'name' => (string) ($product['make_name'] ?? $product['category'] ?? config('app.name', 'Auto RC Pecas')),
+        ],
+        'offers' => [
+            '@type' => 'Offer',
+            'url' => $productUrlForSchema,
+            'priceCurrency' => 'EUR',
+            'availability' => ((int) ($product['stock'] ?? 0)) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+            'itemCondition' => 'https://schema.org/UsedCondition',
+        ],
+    ])
+    @if (is_numeric($priceExVatForSchema) && (float) $priceExVatForSchema > 0)
+        @php($schemaData['offers']['price'] = number_format((float) $priceExVatForSchema, 2, '.', ''))
+    @endif
     @php($carouselImages = $images)
     @if ($cover !== '' && in_array($cover, $images, true))
         @php($carouselImages = array_values(array_filter($images, fn ($u) => $u !== $cover)))
         @php(array_unshift($carouselImages, $cover))
     @endif
+
+    <script type="application/ld+json">{!! json_encode($schemaData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>
 
     <style>
         .product-breadcrumb-wrap {
