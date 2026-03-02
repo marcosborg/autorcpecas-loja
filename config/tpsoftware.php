@@ -40,8 +40,11 @@ return [
         'index_ttl_seconds' => (int) env('TPSOFTWARE_INDEX_TTL_SECONDS', 1800),
         'index_path' => env('TPSOFTWARE_INDEX_PATH', storage_path('app/tpsoftware/index.json')),
         'index_meta_path' => env('TPSOFTWARE_INDEX_META_PATH', storage_path('app/tpsoftware/index.meta.json')),
-        'price_fallback_enabled' => env('TPSOFTWARE_PRICE_FALLBACK_ENABLED', true),
+        // Em operacao diaria, evita lookups live por item nas listagens.
+        'price_fallback_enabled' => env('TPSOFTWARE_PRICE_FALLBACK_ENABLED', false),
         'price_fallback_max_lookups' => (int) env('TPSOFTWARE_PRICE_FALLBACK_MAX_LOOKUPS', 12),
+        // Valida referencia exata contra API live (mais rigor, mais latencia).
+        'live_reference_validation_enabled' => env('TPSOFTWARE_LIVE_REFERENCE_VALIDATION_ENABLED', false),
 
         // Campo usado como "categoria" na vitrine (por defeito marca do veículo)
         'category_field' => env('TPSOFTWARE_CATEGORY_FIELD', 'vehicle_make_name'),

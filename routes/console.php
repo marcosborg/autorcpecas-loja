@@ -1,8 +1,12 @@
 <?php
 
+use App\Jobs\ReindexTpSoftware;
 use App\Models\User;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Facades\Storage;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -41,3 +45,54 @@ Artisan::command('tpsoftware:index {--force : Recria o indice}', function () {
 
     return 0;
 })->purpose('Constroi indice local (cache) do inventario TP Software para a vitrine');
+
+Artisan::command('tpsoftware:index:queue {--force : Recria o indice}', function () {
+    if ((string) config('storefront.catalog_provider', 'telepecas') !== 'tpsoftware') {
+        $this->info('Ignorado: STOREFRONT_CATALOG_PROVIDER != tpsoftware.');
+
+        return 0;
+    }
+
+    $lockTtlSeconds = (int) env('TPSOFTWARE_INDEX_QUEUE_LOCK_SECONDS', 1800);
+    $lockTtlSeconds = max(60, min(86400, $lockTtlSeconds));
+
+    if (! Cache::add(ReindexTpSoftware::QUEUE_LOCK_KEY, now()->toIso8601String(), $lockTtlSeconds)) {
+        $this->info('Reindex ja em curso (ou recentemente enfileirado).');
+
+        return 0;
+    }
+
+    $force = (bool) $this->option('force');
+
+    Storage::disk('local')->put(
+        'maintenance/tpsoftware-index.json',
+        json_encode([
+            'status' => 'queued',
+            'force' => $force,
+            'queued_at' => now()->toIso8601String(),
+            'source' => 'scheduler',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+    );
+
+    ReindexTpSoftware::dispatch($force);
+    $this->info('Reindex TP Software enfileirado.');
+
+    return 0;
+})->purpose('Enfileira reindex TP Software (com lock para evitar duplicados)');
+
+$scheduleEnabled = filter_var(env('TPSOFTWARE_INDEX_SCHEDULE_ENABLED', true), FILTER_VALIDATE_BOOL);
+$scheduleEveryMinutes = (int) env('TPSOFTWARE_INDEX_SCHEDULE_EVERY_MINUTES', 15);
+$scheduleEveryMinutes = max(5, min(60, $scheduleEveryMinutes));
+
+if ($scheduleEnabled) {
+    $event = Schedule::command('tpsoftware:index:queue')->withoutOverlapping(30);
+
+    match ($scheduleEveryMinutes) {
+        5 => $event->everyFiveMinutes(),
+        10 => $event->everyTenMinutes(),
+        15 => $event->everyFifteenMinutes(),
+        30 => $event->everyThirtyMinutes(),
+        60 => $event->hourly(),
+        default => $event->everyFifteenMinutes(),
+    };
+}

@@ -40,6 +40,14 @@ class Maintenance extends Page
         $this->refreshDbStatus();
     }
 
+    /**
+     * @return array<string>
+     */
+    public function getPageClasses(): array
+    {
+        return ['maintenance-page'];
+    }
+
     protected function getHeaderActions(): array
     {
         return [

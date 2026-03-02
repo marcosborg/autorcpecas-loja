@@ -450,7 +450,10 @@ class TpSoftwareCatalogService implements CatalogProvider
             throw new \RuntimeException('TP Software: índice de produtos ainda não foi gerado. Corre: php artisan tpsoftware:index');
         }
 
-        if ($this->isLikelyReferenceQuery($query)) {
+        if (
+            (bool) config('tpsoftware.catalog.live_reference_validation_enabled', false) &&
+            $this->isLikelyReferenceQuery($query)
+        ) {
             $exactIndexed = collect($indexed)
                 ->map(fn (array $p, int $idx): array => ['product' => $p, 'index' => $idx])
                 ->filter(function (array $row) use ($query): bool {

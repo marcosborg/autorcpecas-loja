@@ -1,4 +1,31 @@
 <x-filament-panels::page>
+    <style>
+        .fi-page.maintenance-page .fi-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .fi-page.maintenance-page .fi-header-actions-ctn {
+            flex-wrap: wrap;
+            row-gap: 0.75rem;
+            width: 100%;
+            max-width: 100%;
+            align-items: flex-start;
+        }
+
+        .fi-page.maintenance-page .fi-header-actions-ctn > .fi-ac {
+            flex: 1 1 100%;
+            min-width: 0;
+        }
+
+        .fi-page.maintenance-page .fi-header-actions-ctn > .fi-ac:not(.fi-width-full) {
+            justify-content: flex-start;
+        }
+
+        .fi-page.maintenance-page .fi-header-actions-ctn .fi-ac:not(.fi-width-full) {
+            flex-wrap: wrap;
+        }
+    </style>
     <div class="space-y-4" wire:poll.5s="refreshStatusTick">
         <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
             <div class="text-sm text-gray-600 dark:text-gray-300">
