@@ -138,7 +138,7 @@ $scheduleEveryMinutes = (int) env('TPSOFTWARE_INDEX_SCHEDULE_EVERY_MINUTES', 15)
 $scheduleEveryMinutes = max(5, min(60, $scheduleEveryMinutes));
 
 if ($scheduleEnabled) {
-    $event = Schedule::command('tpsoftware:index:queue')->withoutOverlapping(30);
+    $event = Schedule::command('tpsoftware:index --force')->withoutOverlapping(90);
 
     match ($scheduleEveryMinutes) {
         5 => $event->everyFiveMinutes(),

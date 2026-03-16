@@ -66,6 +66,24 @@ class TpSoftwareIndexStore
         return is_array($data) ? $data : null;
     }
 
+    public function fingerprint(): string
+    {
+        $meta = $this->meta() ?? [];
+        $generatedAt = trim((string) ($meta['generated_at'] ?? ''));
+
+        if ($generatedAt !== '') {
+            return sha1($generatedAt.'|'.(string) ($meta['indexed'] ?? ''));
+        }
+
+        $path = $this->indexPath();
+
+        if ($this->files->exists($path)) {
+            return sha1((string) ($this->files->lastModified($path) ?: '0'));
+        }
+
+        return 'missing';
+    }
+
     public function isFreshForCurrentConfig(): bool
     {
         $meta = $this->meta() ?? [];

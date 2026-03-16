@@ -30,6 +30,8 @@ class TpSoftwareCatalogService implements CatalogProvider
      */
     public function buildIndex(bool $force = false): array
     {
+        $previousFingerprint = $this->indexFingerprint();
+
         if (! $force && $this->indexStore->exists() && $this->indexStore->isFreshForCurrentConfig()) {
             $existing = $this->indexStore->load() ?? [];
 
@@ -56,10 +58,18 @@ class TpSoftwareCatalogService implements CatalogProvider
             ], 0, false);
 
             if (! ($result['ok'] ?? false)) {
-                break;
+                $status = (int) ($result['status'] ?? 0);
+
+                throw new \RuntimeException(
+                    'TP Software: falha a reconstruir indice na pagina '.$page.($status > 0 ? ' (HTTP '.$status.')' : '.')
+                );
             }
 
             $items = $this->extractList($result['data'] ?? null);
+
+            if (count($items) === 0 && $page === 1 && $total > 0) {
+                throw new \RuntimeException('TP Software: resposta vazia ao reconstruir indice apesar de existir total > 0.');
+            }
 
             if (count($items) === 0) {
                 break;
@@ -74,10 +84,11 @@ class TpSoftwareCatalogService implements CatalogProvider
             }
         }
 
-        $ttl = (int) config('tpsoftware.catalog.index_ttl_seconds', 1800);
-        $ttl = max(60, $ttl);
-
         $this->indexStore->save($products, $total);
+        $this->flushDerivedCaches($previousFingerprint, $products);
+        $this->indexedProductsCache = $products;
+        $this->indexedProductsLoaded = true;
+        $this->indexPositionMap = null;
 
         return [
             'total' => $total,
@@ -97,8 +108,9 @@ class TpSoftwareCatalogService implements CatalogProvider
                 $cache = Cache::store((string) config('tpsoftware.cache_store', 'file'));
                 $ttl = (int) config('tpsoftware.catalog.index_ttl_seconds', 1800);
                 $ttl = max(60, $ttl);
+                $cacheKey = 'tpsoftware:catalog:makes:indexed:'.$this->indexFingerprint();
 
-                return $cache->remember('tpsoftware:catalog:makes:indexed:v1', $ttl, function () use ($indexed) {
+                return $cache->remember($cacheKey, $ttl, function () use ($indexed) {
                     /** @var array<string, string> $names */
                     $names = [];
 
@@ -1667,6 +1679,46 @@ class TpSoftwareCatalogService implements CatalogProvider
         $this->indexedProductsLoaded = true;
 
         return $this->indexedProductsCache;
+    }
+
+    private function indexFingerprint(): string
+    {
+        return $this->indexStore->fingerprint();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $products
+     */
+    private function flushDerivedCaches(string $previousFingerprint, array $products): void
+    {
+        $store = (string) config('tpsoftware.cache_store', 'file');
+        $cache = Cache::store($store);
+
+        $cache->forget('tpsoftware:catalog:makes');
+
+        if ($previousFingerprint !== '') {
+            $cache->forget('tpsoftware:catalog:makes:indexed:'.$previousFingerprint);
+        }
+
+        $currentFingerprint = $this->indexFingerprint();
+        if ($currentFingerprint !== '') {
+            $cache->forget('tpsoftware:catalog:makes:indexed:'.$currentFingerprint);
+        }
+
+        $makeNames = [];
+
+        foreach ($products as $product) {
+            $name = trim((string) ($product['make_name'] ?? $product['category'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $makeNames[$name] = true;
+        }
+
+        foreach (array_keys($makeNames) as $name) {
+            $cache->forget('tpsoftware:catalog:models:'.sha1($name));
+        }
     }
 
     /**
