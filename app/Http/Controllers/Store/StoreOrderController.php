@@ -37,6 +37,9 @@ class StoreOrderController extends Controller
         abort_unless($user, 401);
         abort_if((int) $order->user_id !== (int) $user->id, 404);
 
+        $this->syncPendingSibsOrder($order);
+        $order->refresh();
+
         $paymentSnapshot = is_array($order->payment_method_snapshot) ? $order->payment_method_snapshot : [];
         $paymentCode = (string) ($paymentSnapshot['code'] ?? '');
         $reference = trim((string) data_get($paymentSnapshot, 'payment_instructions.reference', ''));
@@ -153,6 +156,9 @@ class StoreOrderController extends Controller
         abort_unless($user, 401);
         abort_if((int) $order->user_id !== (int) $user->id, 404);
 
+        $this->syncPendingSibsOrder($order);
+        $order->refresh();
+
         if ((string) $order->status !== 'awaiting_payment') {
             return redirect(url('/loja/conta/encomendas/'.$order->id));
         }
@@ -167,5 +173,24 @@ class StoreOrderController extends Controller
             'order' => $order,
             'widget' => $widget,
         ]);
+    }
+
+    private function syncPendingSibsOrder(Order $order): void
+    {
+        if ((string) $order->status !== 'awaiting_payment') {
+            return;
+        }
+
+        $paymentSnapshot = is_array($order->payment_method_snapshot) ? $order->payment_method_snapshot : [];
+        $paymentCode = trim((string) ($paymentSnapshot['code'] ?? ''));
+        if (! str_starts_with($paymentCode, 'sibs_')) {
+            return;
+        }
+
+        try {
+            $this->sibsCheckout->reconcileOrderStatus($order);
+        } catch (\Throwable) {
+            // Silent fallback: the user can still retry payment or wait for webhook reconciliation.
+        }
     }
 }

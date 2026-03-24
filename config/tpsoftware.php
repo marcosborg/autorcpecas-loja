@@ -56,6 +56,8 @@ return [
 
     'sales_sync' => [
         'enabled' => env('TPSOFTWARE_SALES_SYNC_ENABLED', true),
+        'endpoint' => env('TPSOFTWARE_SALES_SYNC_ENDPOINT', 'ecommerce-generate-sales-order'),
+        'method' => env('TPSOFTWARE_SALES_SYNC_METHOD', 'auto'),
     ],
 ];
 

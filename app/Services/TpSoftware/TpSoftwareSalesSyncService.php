@@ -53,7 +53,7 @@ class TpSoftwareSalesSyncService
         $payload = $this->buildSalesPayload($order, $products);
 
         try {
-            $response = $this->client->post('ecommerce-generate-sales-order', $payload, 0, false);
+            $response = $this->sendSalesSyncRequest($payload);
         } catch (Throwable $e) {
             $this->markSync($order, [
                 'status' => 'failed',
@@ -110,6 +110,35 @@ class TpSoftwareSalesSyncService
         ]);
 
         return ['ok' => true, 'status' => $response['status'] ?? null];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{ok: bool, status: int|null, data: mixed, raw: mixed}
+     */
+    private function sendSalesSyncRequest(array $payload): array
+    {
+        $endpoint = trim((string) config('tpsoftware.sales_sync.endpoint', 'ecommerce-generate-sales-order'));
+        $method = mb_strtolower(trim((string) config('tpsoftware.sales_sync.method', 'auto')), 'UTF-8');
+
+        if ($endpoint === '') {
+            $endpoint = 'ecommerce-generate-sales-order';
+        }
+
+        if ($method === 'get') {
+            return $this->client->get($endpoint, $payload, 0, false);
+        }
+
+        if ($method === 'post') {
+            return $this->client->post($endpoint, $payload, 0, false);
+        }
+
+        $response = $this->client->post($endpoint, $payload, 0, false);
+        if (($response['status'] ?? null) === 404) {
+            return $this->client->get($endpoint, $payload, 0, false);
+        }
+
+        return $response;
     }
 
     /**
@@ -346,4 +375,3 @@ class TpSoftwareSalesSyncService
         return $value;
     }
 }
-

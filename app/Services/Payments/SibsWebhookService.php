@@ -93,6 +93,24 @@ class SibsWebhookService
      */
     public function handle(array $payload, ?string $providedSecret = null): array
     {
+        return $this->processPayload($payload, $providedSecret, true);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{ok: bool, status: int, message: string, order_id?: int}
+     */
+    public function handleTrusted(array $payload): array
+    {
+        return $this->processPayload($payload, null, false);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{ok: bool, status: int, message: string, order_id?: int}
+     */
+    private function processPayload(array $payload, ?string $providedSecret, bool $validateSecret): array
+    {
         $order = $this->resolveOrder($payload);
         if (! $order) {
             // Acknowledge to avoid endless retries when SIBS sends duplicated/late events.
@@ -114,7 +132,7 @@ class SibsWebhookService
         }
 
         $expectedSecret = trim((string) data_get($method->meta, 'webhook_secret', ''));
-        if ($expectedSecret !== '') {
+        if ($validateSecret && $expectedSecret !== '') {
             $providedSecret = trim((string) $providedSecret);
             if ($providedSecret === '' || ! hash_equals($expectedSecret, $providedSecret)) {
                 return ['ok' => false, 'status' => 401, 'message' => 'Webhook secret invalido.'];

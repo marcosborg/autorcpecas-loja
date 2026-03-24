@@ -5,6 +5,7 @@ namespace App\Services\Payments;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\PaymentMethod;
+use App\Services\Payments\SibsWebhookService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -14,6 +15,11 @@ class SibsCheckoutService
     private const API_URL_TEST = 'https://spg.qly.site1.sibs.pt/api/v2/payments';
     private const WIDGET_URL_LIVE = 'https://api.sibspayments.com/assets/js/widget.js?id=';
     private const WIDGET_URL_TEST = 'https://spg.qly.site1.sibs.pt/assets/js/widget.js?id=';
+
+    public function __construct(
+        private readonly SibsWebhookService $webhookService,
+    ) {
+    }
 
     /**
      * @return array{message: string, redirect_url?: string}
@@ -265,6 +271,64 @@ class SibsCheckoutService
             'message' => 'A SIBS ainda nao devolveu a referencia para esta transacao.',
             'updated' => false,
             'has_reference' => false,
+        ];
+    }
+
+    /**
+     * @return array{updated: bool, payload?: array<string, mixed>, message: string}
+     */
+    public function reconcileOrderStatus(Order $order): array
+    {
+        $snapshot = is_array($order->payment_method_snapshot) ? $order->payment_method_snapshot : [];
+        $code = trim((string) ($snapshot['code'] ?? ''));
+        if ($code === '' || ! str_starts_with($code, 'sibs_')) {
+            return ['updated' => false, 'message' => 'Encomenda sem pagamento SIBS.'];
+        }
+
+        $transactionId = trim((string) data_get($snapshot, 'sibs_execution.transaction_id', ''));
+        if ($transactionId === '') {
+            return ['updated' => false, 'message' => 'Sem transacao SIBS associada.'];
+        }
+
+        $meta = $this->resolveMeta($code, $snapshot);
+        $serverMode = mb_strtoupper(trim((string) ($meta['server'] ?? data_get($snapshot, 'sibs_execution.server_mode', 'TEST'))), 'UTF-8');
+        $apiUrl = $serverMode === 'LIVE' ? self::API_URL_LIVE : self::API_URL_TEST;
+        $bearerToken = trim((string) ($meta['bearer_token'] ?? ''));
+        $credentialAttempts = $this->buildCredentialAttempts($meta);
+
+        if ($bearerToken === '' || $credentialAttempts === []) {
+            return ['updated' => false, 'message' => 'Credenciais SIBS incompletas.'];
+        }
+
+        $statusBody = null;
+        foreach ($credentialAttempts as $attempt) {
+            $statusBody = $this->requestPaymentStatus(
+                $apiUrl,
+                $transactionId,
+                $bearerToken,
+                $attempt['client_id'],
+                $attempt['client_secret'],
+            );
+
+            if (is_array($statusBody)) {
+                break;
+            }
+        }
+
+        if (! is_array($statusBody)) {
+            return ['updated' => false, 'message' => 'Falha a consultar estado SIBS.'];
+        }
+
+        $snapshot['sibs_execution']['status_response'] = $statusBody;
+        $order->payment_method_snapshot = $snapshot;
+        $order->save();
+
+        $result = $this->webhookService->handleTrusted($statusBody);
+
+        return [
+            'updated' => (bool) ($result['ok'] ?? false),
+            'payload' => $statusBody,
+            'message' => (string) ($result['message'] ?? 'Estado SIBS consultado.'),
         ];
     }
 
