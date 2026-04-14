@@ -104,6 +104,8 @@
                         @foreach ($products as $p)
                             @php($img = $p['cover_image'] ?? ($p['images'][0] ?? null))
                             @php($productKey = (string) (($p['id'] ?? null) ?: ($p['reference'] ?? '')))
+                            @php($productUrl = \App\Support\ProductUrl::url($p))
+                            @php($productPathSegment = \App\Support\ProductUrl::pathSegment($p))
                             @php($vehicleLine = trim((string) ($p['make_name'] ?? '').' '.(string) ($p['model_name'] ?? '')))
                             @php($fuelType = trim((string) ($p['fuel_type'] ?? '')))
                             @php($engineLine = trim((string) ($p['engine_label'] ?? '')))
@@ -111,7 +113,7 @@
                             <div class="col">
                                 <div class="card h-100 product-card">
                                     <a
-                                        href="{{ url('/loja/produtos/'.urlencode($productKey)) }}"
+                                        href="{{ $productUrl }}"
                                         class="product-card-link"
                                         aria-label="Ver produto {{ $p['title'] ?? 'Produto' }}"
                                     ></a>
@@ -134,7 +136,7 @@
 
                                     <div class="card-body d-flex flex-column">
                                         <h6 class="card-title mb-1 home-product-title">
-                                            <a class="link-primary text-decoration-none fw-semibold" href="{{ url('/loja/produtos/'.urlencode($productKey)) }}">
+                                            <a class="link-primary text-decoration-none fw-semibold" href="{{ $productUrl }}">
                                                 {{ $p['title'] ?? 'Produto' }}
                                             </a>
                                         </h6>
@@ -183,7 +185,7 @@
                                                     data-bs-toggle="modal"
                                                     data-bs-target="#consultPriceModal"
                                                     data-consult-trigger
-                                                    data-consult-action="{{ url('/loja/produtos/'.urlencode($productKey).'/consulta') }}"
+                                                    data-consult-action="{{ url('/loja/produtos/'.rawurlencode($productPathSegment).'/consulta') }}"
                                                     data-consult-title="{{ $p['title'] ?? 'Produto' }}"
                                                     data-consult-reference="{{ $p['reference'] ?? '' }}"
                                                 >

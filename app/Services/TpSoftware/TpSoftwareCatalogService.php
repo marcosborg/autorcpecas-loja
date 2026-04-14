@@ -436,16 +436,11 @@ class TpSoftwareCatalogService implements CatalogProvider
 
         if ($indexed !== null) {
             foreach ($indexed as $idx => $p) {
-                $id = (string) (($p['id'] ?? '') ?: '');
-                $ref = (string) (($p['reference'] ?? '') ?: '');
+                if ($this->matchesIndexedIdOrReference($p, $idOrReference)) {
+                    $raw = $this->fetchProductRawByIdOrReference($idOrReference, is_int($idx) ? $idx : null);
 
-                if ($id === $idOrReference || ($ref !== '' && strcasecmp($ref, $idOrReference) === 0)) {
-                    if ((bool) config('tpsoftware.catalog.product_live_details_enabled', false)) {
-                        $raw = $this->fetchProductRawByIdOrReference($idOrReference, is_int($idx) ? $idx : null);
-
-                        if (is_array($raw)) {
-                            return $this->normalizeProduct($raw, includeRaw: true);
-                        }
+                    if (is_array($raw)) {
+                        return $this->normalizeProduct($raw, includeRaw: true);
                     }
 
                     return $this->withCoverImage($p);
@@ -576,6 +571,11 @@ class TpSoftwareCatalogService implements CatalogProvider
         $fields = [
             (string) ($product['id'] ?? ''),
             (string) ($product['reference'] ?? ''),
+            implode(' ', array_filter(array_map(
+                static fn ($ref): string => is_scalar($ref) ? trim((string) $ref) : '',
+                (array) ($product['additional_references'] ?? [])
+            ))),
+            (string) ($product['part_code'] ?? ''),
             (string) ($product['tp_reference'] ?? ''),
             (string) ($product['title'] ?? ''),
             (string) ($product['category'] ?? ''),
@@ -962,9 +962,9 @@ class TpSoftwareCatalogService implements CatalogProvider
     private function normalizeProduct(array $raw, bool $includeRaw = false): array
     {
         $id = data_get($raw, 'id');
-        $reference = $this->extractPieceReference($raw)
-            ?? data_get($raw, 'part_code')
-            ?? data_get($raw, 'parts_internal_id');
+        $references = $this->extractPieceReferences($raw);
+        $reference = $references[0] ?? null;
+        $partCode = trim((string) (data_get($raw, 'part_code') ?? ''));
         $title = data_get($raw, 'product_name') ?? data_get($raw, 'part_description') ?? $reference ?? (string) $id;
         $category = (string) (data_get($raw, (string) config('tpsoftware.catalog.category_field', 'vehicle_make_name')) ?? 'Outros');
         $modelName = (string) (data_get($raw, (string) config('tpsoftware.catalog.model_field', 'vehicle_model_name')) ?? '');
@@ -987,6 +987,7 @@ class TpSoftwareCatalogService implements CatalogProvider
         $normalized = [
             'id' => $id,
             'reference' => $reference,
+            'additional_references' => array_values(array_slice($references, 1)),
             'title' => $title,
             'category' => $category,
             'make_id' => null,
@@ -1006,6 +1007,7 @@ class TpSoftwareCatalogService implements CatalogProvider
             'engine_label' => $this->buildEngineLabel($raw),
             'vehicle_year' => $vehicleYear !== '' ? $vehicleYear : null,
             'tp_reference' => $tpReference !== '' ? $tpReference : null,
+            'part_code' => $partCode !== '' ? $partCode : null,
         ];
 
         if ($includeRaw) {
@@ -1351,12 +1353,10 @@ class TpSoftwareCatalogService implements CatalogProvider
             return true;
         }
 
-        $ref = $this->extractPieceReference($raw)
-            ?? data_get($raw, 'part_code')
-            ?? data_get($raw, 'parts_internal_id');
-
-        if (is_scalar($ref) && (string) $ref !== '' && strcasecmp((string) $ref, $needle) === 0) {
-            return true;
+        foreach ($this->rawLookupKeys($raw) as $candidate) {
+            if (strcasecmp($candidate, $needle) === 0) {
+                return true;
+            }
         }
 
         return false;
@@ -1631,15 +1631,19 @@ class TpSoftwareCatalogService implements CatalogProvider
         return in_array($v, ['true', 'yes', 'y', 'sim', 's'], true);
     }
 
-    private function extractPieceReference(array $raw): ?string
+    /**
+     * @return list<string>
+     */
+    private function extractPieceReferences(array $raw): array
     {
         $refs = data_get($raw, 'parts_reference');
 
         if (! is_array($refs) || ! array_is_list($refs)) {
-            return null;
+            return [];
         }
 
-        $first = null;
+        $main = [];
+        $secondary = [];
 
         foreach ($refs as $item) {
             if (! is_array($item)) {
@@ -1651,15 +1655,96 @@ class TpSoftwareCatalogService implements CatalogProvider
                 continue;
             }
 
-            $first ??= trim((string) $code);
+            $code = trim((string) $code);
 
             $isMain = data_get($item, 'is_main');
             if ($isMain === 1 || $isMain === '1' || $isMain === true) {
-                return trim((string) $code);
+                $main[] = $code;
+                continue;
+            }
+
+            $secondary[] = $code;
+        }
+
+        return array_values(array_unique([...$main, ...$secondary]));
+    }
+
+    private function extractPieceReference(array $raw): ?string
+    {
+        return $this->extractPieceReferences($raw)[0] ?? null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $product
+     */
+    private function matchesIndexedIdOrReference(array $product, string $needle): bool
+    {
+        foreach ($this->indexedLookupKeys($product) as $candidate) {
+            if (strcasecmp($candidate, $needle) === 0) {
+                return true;
             }
         }
 
-        return $first;
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $product
+     * @return list<string>
+     */
+    private function indexedLookupKeys(array $product): array
+    {
+        $keys = [];
+
+        foreach ([
+            $product['id'] ?? null,
+            $product['reference'] ?? null,
+            ...((array) ($product['additional_references'] ?? [])),
+            $product['part_code'] ?? null,
+            $product['tp_reference'] ?? null,
+        ] as $value) {
+            if (! is_scalar($value)) {
+                continue;
+            }
+
+            $value = trim((string) $value);
+            if ($value === '') {
+                continue;
+            }
+
+            $keys[] = $value;
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    /**
+     * @param  array<string, mixed>  $raw
+     * @return list<string>
+     */
+    private function rawLookupKeys(array $raw): array
+    {
+        $keys = [];
+
+        foreach ([
+            data_get($raw, 'id'),
+            ...$this->extractPieceReferences($raw),
+            data_get($raw, 'part_code'),
+            data_get($raw, 'parts_internal_id'),
+        ] as $value) {
+            if (! is_scalar($value)) {
+                continue;
+            }
+
+            $value = trim((string) $value);
+            if ($value === '') {
+                continue;
+            }
+
+            $keys[] = $value;
+        }
+
+        return array_values(array_unique($keys));
     }
 
     /**

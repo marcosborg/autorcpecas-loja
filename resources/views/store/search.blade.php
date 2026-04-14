@@ -51,6 +51,8 @@
                 @foreach ($results as $p)
                     @php($img = $p['cover_image'] ?? ($p['images'][0] ?? null))
                     @php($productKey = (string) (($p['id'] ?? null) ?: ($p['reference'] ?? '')))
+                    @php($productUrl = \App\Support\ProductUrl::url($p))
+                    @php($productPathSegment = \App\Support\ProductUrl::pathSegment($p))
                     @php($vehicleLine = trim((string) ($p['make_name'] ?? '').' '.(string) ($p['model_name'] ?? '')))
                     @php($fuelType = trim((string) ($p['fuel_type'] ?? '')))
                     @php($engineLine = trim((string) ($p['engine_label'] ?? '')))
@@ -79,7 +81,7 @@
                                     @endif
                                 </div>
                                 <div class="flex-grow-1">
-                                    <a class="title-link link-primary fw-semibold" href="{{ url('/loja/produtos/'.urlencode($productKey)) }}">{{ $p['title'] ?? 'Produto' }}</a>
+                                    <a class="title-link link-primary fw-semibold" href="{{ $productUrl }}">{{ $p['title'] ?? 'Produto' }}</a>
                                     @if ($vehicleLine !== '')
                                         <div class="meta-line mt-1"><strong>{{ $vehicleLine }}</strong></div>
                                     @endif
@@ -117,7 +119,7 @@
                                                     data-bs-toggle="modal"
                                                     data-bs-target="#consultPriceModal"
                                                     data-consult-trigger
-                                                    data-consult-action="{{ url('/loja/produtos/'.urlencode($productKey).'/consulta') }}"
+                                                    data-consult-action="{{ url('/loja/produtos/'.rawurlencode($productPathSegment).'/consulta') }}"
                                                     data-consult-title="{{ $p['title'] ?? 'Produto' }}"
                                                     data-consult-reference="{{ $p['reference'] ?? '' }}"
                                                 >

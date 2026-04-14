@@ -3,17 +3,25 @@
 @section('content')
     @php($make = (string) ($product['make_name'] ?? $product['category'] ?? ''))
     @php($model = (string) ($product['model_name'] ?? ''))
+    @php($additionalReferences = array_values(array_filter((array) ($product['additional_references'] ?? []), fn ($ref) => is_scalar($ref) && trim((string) $ref) !== '')))
     @php($images = array_values(array_filter($product['images'] ?? [], fn ($u) => is_string($u) && $u !== '')))
     @php($cover = (string) ($product['cover_image'] ?? ''))
     @php($priceExVatForSchema = $product['price_ex_vat'] ?? ($product['price'] ?? null))
-    @php($productUrlForSchema = url('/loja/produtos/'.urlencode((string) (($product['id'] ?? null) ?: ($product['reference'] ?? '')))))
+    @php($productUrlForSchema = \App\Support\ProductUrl::url($product))
+    @php($schemaDescriptionParts = array_values(array_filter([
+        trim((string) ($product['title'] ?? '')),
+        $make !== '' ? 'Marca: '.$make : null,
+        $model !== '' ? 'Modelo: '.$model : null,
+        !empty($product['reference']) ? 'Ref: '.$product['reference'] : null,
+        count($additionalReferences) > 0 ? 'Outras refs: '.implode(', ', array_slice($additionalReferences, 0, 4)) : null,
+    ])))
     @php($schemaData = [
         '@context' => 'https://schema.org',
         '@type' => 'Product',
         'name' => (string) ($product['title'] ?? 'Produto'),
         'sku' => (string) ($product['reference'] ?? ''),
         'image' => $images,
-        'description' => trim((string) ($product['title'] ?? '')),
+        'description' => implode(' | ', $schemaDescriptionParts),
         'brand' => [
             '@type' => 'Brand',
             'name' => (string) ($product['make_name'] ?? $product['category'] ?? config('app.name', 'Auto RC Pecas')),
@@ -26,6 +34,16 @@
             'itemCondition' => 'https://schema.org/UsedCondition',
         ],
     ])
+    @if (!empty($product['reference']))
+        @php($schemaData['mpn'] = (string) $product['reference'])
+    @endif
+    @if (count($additionalReferences) > 0)
+        @php($schemaData['additionalProperty'] = [[
+            '@type' => 'PropertyValue',
+            'name' => 'Outras referências',
+            'value' => implode(', ', $additionalReferences),
+        ]])
+    @endif
     @if (is_numeric($priceExVatForSchema) && (float) $priceExVatForSchema > 0)
         @php($schemaData['offers']['price'] = number_format((float) $priceExVatForSchema, 2, '.', ''))
     @endif
@@ -217,6 +235,14 @@
                     @if (!empty($product['reference']))
                         Ref: <span class="fw-semibold">{{ $product['reference'] }}</span>
                     @endif
+                    @if (count($additionalReferences) > 0)
+                        <div class="mt-1">
+                            Outras refs:
+                            @foreach ($additionalReferences as $ref)
+                                <span class="fw-semibold">{{ $ref }}</span>@if (! $loop->last), @endif
+                            @endforeach
+                        </div>
+                    @endif
                     @if ($make !== '')
                         <span class="mx-2">•</span>
                         Marca: <a class="link-primary text-decoration-none" href="{{ url('/loja/categorias/'.\Illuminate\Support\Str::slug($make)) }}">{{ $make }}</a>
@@ -232,10 +258,10 @@
                         @php($priceExVat = $product['price_ex_vat'] ?? ($product['price'] ?? null))
                         @php($isConsultPrice = is_numeric($priceExVat) && (float) $priceExVat <= 0)
                         @php($productKey = (string) (($product['id'] ?? null) ?: ($product['reference'] ?? '')))
-                        @php($idOrReference = (string) (($product['id'] ?? null) ?: ($product['reference'] ?? '')))
+                        @php($productPathSegment = \App\Support\ProductUrl::pathSegment($product))
                         @php($productTitle = (string) ($product['title'] ?? 'Produto'))
                         @php($productReference = (string) ($product['reference'] ?? ''))
-                        @php($productUrl = (string) request()->fullUrl())
+                        @php($productUrl = \App\Support\ProductUrl::url($product))
                         @php($waMessage = 'Olá! Tenho interesse neste produto: '.$productTitle.($productReference !== '' ? ' (Ref: '.$productReference.')' : '').'. Link: '.$productUrl)
                         @php($waLink = 'https://wa.me/351914401299?text='.rawurlencode($waMessage))
                         <div class="d-flex flex-wrap align-items-center gap-2">
@@ -273,7 +299,7 @@
                                     data-bs-toggle="modal"
                                     data-bs-target="#consultPriceModal"
                                     data-consult-trigger
-                                    data-consult-action="{{ url('/loja/produtos/'.urlencode($idOrReference).'/consulta') }}"
+                                    data-consult-action="{{ url('/loja/produtos/'.rawurlencode($productPathSegment).'/consulta') }}"
                                     data-consult-title="{{ $product['title'] ?? 'Produto' }}"
                                     data-consult-reference="{{ $product['reference'] ?? '' }}"
                                 >

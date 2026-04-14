@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Store;
 
 use App\Http\Controllers\Controller;
+use App\Support\ProductUrl;
 use App\Services\Catalog\CatalogProvider;
 use Illuminate\Http\Request;
 
@@ -52,12 +53,12 @@ class StoreSearchController extends Controller
         $items = collect($results->items())
             ->map(function (array $product) {
                 $reference = (string) ($product['reference'] ?? '');
-                $productKey = (string) (($product['id'] ?? null) ?: $reference);
+                $productUrl = ProductUrl::url($product);
 
                 return [
                     'title' => (string) ($product['title'] ?? 'Produto'),
                     'reference' => $reference,
-                    'url' => url('/loja/produtos/' . urlencode($productKey)),
+                    'url' => $productUrl,
                 ];
             })
             ->filter(fn (array $item) => $item['url'] !== '')

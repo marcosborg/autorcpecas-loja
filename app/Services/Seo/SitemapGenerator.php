@@ -3,6 +3,7 @@
 namespace App\Services\Seo;
 
 use App\Models\CmsPage;
+use App\Support\ProductUrl;
 use App\Services\Catalog\CatalogProvider;
 use App\Services\TpSoftware\TpSoftwareIndexStore;
 use Illuminate\Filesystem\Filesystem;
@@ -101,14 +102,12 @@ class SitemapGenerator
                     break;
                 }
 
-                $id = trim((string) ($product['id'] ?? ''));
-                $reference = trim((string) ($product['reference'] ?? ''));
-                $key = $id !== '' ? $id : $reference;
-                if ($key === '') {
+                $segment = ProductUrl::pathSegment($product);
+                if ($segment === '') {
                     continue;
                 }
 
-                $push('/loja/produtos/'.rawurlencode($key), 'daily', '0.7');
+                $push('/loja/produtos/'.rawurlencode($segment), 'daily', '0.7');
                 $productUrls++;
                 $count++;
             }
@@ -157,4 +156,3 @@ class SitemapGenerator
         ];
     }
 }
-
