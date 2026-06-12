@@ -20,6 +20,7 @@ Route::prefix('loja')->group(function () {
     Route::post('produtos/{idOrReference}/consulta', [\App\Http\Controllers\Store\StoreProductController::class, 'requestConsultation']);
     Route::get('pesquisa', [\App\Http\Controllers\Store\StoreSearchController::class, 'index']);
     Route::get('pesquisa/sugestoes', [\App\Http\Controllers\Store\StoreSearchController::class, 'suggestions']);
+    Route::get('pesquisa/filtros', [\App\Http\Controllers\Store\StoreSearchController::class, 'filters']);
     Route::get('checkout/simulador', [\App\Http\Controllers\Store\StoreCheckoutSimulatorController::class, 'index']);
 
     Route::middleware('guest')->group(function () {

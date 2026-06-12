@@ -2,13 +2,15 @@
 
 namespace App\Services\Telepecas;
 
-use App\Services\Catalog\CatalogProvider;
+use App\Services\Catalog\CatalogSearchCriteria;
+use App\Services\Catalog\CatalogSearchResult;
+use App\Services\Catalog\AdvancedCatalogProvider;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
-class TelepecasCatalogService implements CatalogProvider
+class TelepecasCatalogService implements AdvancedCatalogProvider
 {
     public function __construct(private readonly TelepecasClient $client)
     {
@@ -512,6 +514,18 @@ class TelepecasCatalogService implements CatalogProvider
             [
                 'path' => url('/loja/pesquisa'),
                 'query' => request()->query(),
+            ],
+        );
+    }
+
+    public function searchAdvanced(CatalogSearchCriteria $criteria): CatalogSearchResult
+    {
+        return new CatalogSearchResult(
+            paginator: $this->search($criteria->query, $criteria->page, $criteria->perPage),
+            facets: [
+                'makes' => $this->categories(),
+                'models' => $criteria->make !== '' ? $this->modelsForMakeSlug($criteria->make) : [],
+                'pieces' => [],
             ],
         );
     }

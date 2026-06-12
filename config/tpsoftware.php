@@ -41,6 +41,12 @@ return [
         'index_ttl_seconds' => (int) env('TPSOFTWARE_INDEX_TTL_SECONDS', 1800),
         'index_path' => env('TPSOFTWARE_INDEX_PATH', storage_path('app/tpsoftware/index.json')),
         'index_meta_path' => env('TPSOFTWARE_INDEX_META_PATH', storage_path('app/tpsoftware/index.meta.json')),
+        'search_index_path' => env(
+            'TPSOFTWARE_SEARCH_INDEX_PATH',
+            env('APP_ENV') === 'testing'
+                ? storage_path('framework/testing/tpsoftware-search.sqlite')
+                : storage_path('app/tpsoftware/search.sqlite'),
+        ),
         // Em operacao diaria, evita lookups live por item nas listagens.
         'price_fallback_enabled' => env('TPSOFTWARE_PRICE_FALLBACK_ENABLED', false),
         'price_fallback_max_lookups' => (int) env('TPSOFTWARE_PRICE_FALLBACK_MAX_LOOKUPS', 12),

@@ -137,7 +137,7 @@ class TpSoftwareClient
                 }
 
                 return true;
-            });
+            }, throw: false);
 
         $dnsServers = trim((string) config('tpsoftware.dns_servers', ''));
 

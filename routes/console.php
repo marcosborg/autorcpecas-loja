@@ -47,6 +47,30 @@ Artisan::command('tpsoftware:index {--force : Recria o indice}', function () {
     return 0;
 })->purpose('Constroi indice local (cache) do inventario TP Software para a vitrine');
 
+Artisan::command('tpsoftware:search-index {--repair : Reconstroi o indice FTS a partir do JSON quando a auditoria falhar}', function () {
+    /** @var \App\Services\TpSoftware\TpSoftwareCatalogService $catalog */
+    $catalog = app(\App\Services\TpSoftware\TpSoftwareCatalogService::class);
+
+    try {
+        $audit = $catalog->auditSearchIndex();
+        $this->info('Indice FTS valido.');
+        $this->line(json_encode($audit, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return 0;
+    } catch (Throwable $e) {
+        $this->warn('Auditoria falhou: '.$e->getMessage());
+        if (! $this->option('repair')) {
+            return 1;
+        }
+    }
+
+    $audit = $catalog->rebuildSearchIndexFromStoredIndex();
+    $this->info('Indice FTS reconstruido.');
+    $this->line(json_encode($audit, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+    return 0;
+})->purpose('Audita e opcionalmente repara o indice SQLite FTS5');
+
 Artisan::command('tpsoftware:index:queue {--force : Recria o indice}', function () {
     if ((string) config('storefront.catalog_provider', 'telepecas') !== 'tpsoftware') {
         $this->info('Ignorado: STOREFRONT_CATALOG_PROVIDER != tpsoftware.');

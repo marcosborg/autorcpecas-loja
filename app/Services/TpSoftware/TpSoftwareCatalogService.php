@@ -2,22 +2,26 @@
 
 namespace App\Services\TpSoftware;
 
-use App\Services\Catalog\CatalogProvider;
+use App\Services\Catalog\CatalogSearchCriteria;
+use App\Services\Catalog\CatalogSearchResult;
+use App\Services\Catalog\AdvancedCatalogProvider;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
-class TpSoftwareCatalogService implements CatalogProvider
+class TpSoftwareCatalogService implements AdvancedCatalogProvider
 {
     /** @var array<string, int>|null */
     private ?array $indexPositionMap = null;
     /** @var list<array<string, mixed>>|null */
     private ?array $indexedProductsCache = null;
     private bool $indexedProductsLoaded = false;
+    private ?TpSoftwareSearchIndex $resolvedSearchIndex = null;
 
     public function __construct(
         private readonly TpSoftwareClient $client,
         private readonly TpSoftwareIndexStore $indexStore,
+        private readonly ?TpSoftwareSearchIndex $searchIndex = null,
     )
     {
     }
@@ -85,6 +89,7 @@ class TpSoftwareCatalogService implements CatalogProvider
         }
 
         $this->indexStore->save($products, $total);
+        $searchAudit = $this->searchIndex()->build($products, $total);
         $this->flushDerivedCaches($previousFingerprint, $products);
         $this->indexedProductsCache = $products;
         $this->indexedProductsLoaded = true;
@@ -94,6 +99,7 @@ class TpSoftwareCatalogService implements CatalogProvider
             'total' => $total,
             'indexed' => count($products),
             'pages' => $pages,
+            'search_index' => $searchAudit,
         ];
     }
 
@@ -102,6 +108,10 @@ class TpSoftwareCatalogService implements CatalogProvider
      */
     public function categories(): array
     {
+        if ($this->searchIndex()->exists()) {
+            return $this->searchIndex()->makes();
+        }
+
         if ((bool) config('tpsoftware.catalog.index_enabled', true)) {
             $indexed = $this->indexedProducts();
             if ($indexed !== null) {
@@ -270,6 +280,14 @@ class TpSoftwareCatalogService implements CatalogProvider
         $page = max(1, $page);
         $perPage = max(1, min(100, $perPage));
 
+        if ($this->searchIndex()->exists()) {
+            return $this->searchIndex()->search(new CatalogSearchCriteria(
+                page: $page,
+                perPage: $perPage,
+                sort: 'newest',
+            ))->paginator;
+        }
+
         $indexed = (bool) config('tpsoftware.catalog.index_enabled', true)
             ? $this->indexedProducts()
             : null;
@@ -313,6 +331,27 @@ class TpSoftwareCatalogService implements CatalogProvider
         $conditionSlug = (string) request()->query('condition', '');
         $priceKey = (string) request()->query('price', '');
         $pieceSlug = (string) request()->query('piece', '');
+
+        if ($this->searchIndex()->exists()) {
+            $result = $this->searchIndex()->search(new CatalogSearchCriteria(
+                make: $categorySlug,
+                model: $modelSlug,
+                piece: $pieceSlug,
+                sort: (string) request()->query('sort', 'relevance'),
+                page: $page,
+                perPage: $perPage,
+            ));
+
+            return [
+                'categoryName' => $this->categoryNameFromSlug($categorySlug),
+                'paginator' => $result->paginator,
+                'meta' => [
+                    'make' => $this->categoryNameFromSlug($categorySlug),
+                    'model' => $modelName,
+                    'facets' => $result->facets,
+                ],
+            ];
+        }
 
         $indexed = (bool) config('tpsoftware.catalog.index_enabled', true)
             ? $this->indexedProducts()
@@ -430,6 +469,13 @@ class TpSoftwareCatalogService implements CatalogProvider
             return null;
         }
 
+        if ($this->searchIndex()->exists()) {
+            $indexedProduct = $this->searchIndex()->product($idOrReference);
+            if (is_array($indexedProduct)) {
+                return $this->withCoverImage($indexedProduct);
+            }
+        }
+
         $indexed = (bool) config('tpsoftware.catalog.index_enabled', true)
             ? $this->indexedProducts()
             : null;
@@ -459,6 +505,14 @@ class TpSoftwareCatalogService implements CatalogProvider
 
         if ($query === '') {
             return new LengthAwarePaginator([], 0, $perPage, $page, ['path' => url('/loja/pesquisa')]);
+        }
+
+        if ($this->searchIndex()->exists()) {
+            return $this->searchAdvanced(new CatalogSearchCriteria(
+                query: $query,
+                page: $page,
+                perPage: $perPage,
+            ))->paginator;
         }
 
         $indexed = (bool) config('tpsoftware.catalog.index_enabled', true)
@@ -533,6 +587,39 @@ class TpSoftwareCatalogService implements CatalogProvider
             'path' => url('/loja/pesquisa'),
             'query' => request()->query(),
         ]);
+    }
+
+    public function searchAdvanced(CatalogSearchCriteria $criteria): CatalogSearchResult
+    {
+        if ($this->searchIndex()->exists()) {
+            return $this->searchIndex()->search($criteria);
+        }
+
+        return new CatalogSearchResult(
+            paginator: $this->search($criteria->query, $criteria->page, $criteria->perPage),
+            facets: [
+                'makes' => $this->categories(),
+                'models' => $criteria->make !== '' ? $this->modelsForMakeSlug($criteria->make) : [],
+                'pieces' => [],
+            ],
+        );
+    }
+
+    /** @return array<string, mixed> */
+    public function auditSearchIndex(): array
+    {
+        return $this->searchIndex()->audit();
+    }
+
+    /** @return array<string, mixed> */
+    public function rebuildSearchIndexFromStoredIndex(): array
+    {
+        $products = $this->indexStore->load();
+        if (! is_array($products)) {
+            throw new \RuntimeException('Índice JSON de produtos não encontrado.');
+        }
+
+        return $this->searchIndex()->build($products, count($products));
     }
 
     /**
@@ -711,6 +798,10 @@ class TpSoftwareCatalogService implements CatalogProvider
     {
         $count = max(1, min(200, $count));
 
+        if ($this->searchIndex()->exists()) {
+            return array_map($this->withCoverImage(...), $this->searchIndex()->random($count));
+        }
+
         $indexed = (bool) config('tpsoftware.catalog.index_enabled', true)
             ? $this->indexedProducts()
             : null;
@@ -731,6 +822,10 @@ class TpSoftwareCatalogService implements CatalogProvider
 
     public function modelsForMakeSlug(string $makeSlug): array
     {
+        if ($this->searchIndex()->exists()) {
+            return $this->searchIndex()->models($makeSlug);
+        }
+
         $makeName = $this->categoryNameFromSlug($makeSlug);
 
         if ($makeName === '') {
@@ -965,7 +1060,8 @@ class TpSoftwareCatalogService implements CatalogProvider
         $references = $this->extractPieceReferences($raw);
         $reference = $references[0] ?? null;
         $partCode = trim((string) (data_get($raw, 'part_code') ?? ''));
-        $title = data_get($raw, 'product_name') ?? data_get($raw, 'part_description') ?? $reference ?? (string) $id;
+        $description = trim((string) (data_get($raw, 'part_description') ?? ''));
+        $title = data_get($raw, 'product_name') ?? $description ?? $reference ?? (string) $id;
         $category = (string) (data_get($raw, (string) config('tpsoftware.catalog.category_field', 'vehicle_make_name')) ?? 'Outros');
         $modelName = (string) (data_get($raw, (string) config('tpsoftware.catalog.model_field', 'vehicle_model_name')) ?? '');
         $stateName = (string) (data_get($raw, 'state_name') ?? '');
@@ -989,6 +1085,7 @@ class TpSoftwareCatalogService implements CatalogProvider
             'reference' => $reference,
             'additional_references' => array_values(array_slice($references, 1)),
             'title' => $title,
+            'description' => $description,
             'category' => $category,
             'make_id' => null,
             'make_name' => $category,
@@ -1008,6 +1105,9 @@ class TpSoftwareCatalogService implements CatalogProvider
             'vehicle_year' => $vehicleYear !== '' ? $vehicleYear : null,
             'tp_reference' => $tpReference !== '' ? $tpReference : null,
             'part_code' => $partCode !== '' ? $partCode : null,
+            'barcode' => trim((string) (data_get($raw, 'bar_code_parts') ?? '')) ?: null,
+            'created_at' => trim((string) (data_get($raw, 'created_at') ?? '')),
+            'piece_name' => $this->pieceCategoryName((string) $title),
         ];
 
         if ($includeRaw) {
@@ -1766,6 +1866,15 @@ class TpSoftwareCatalogService implements CatalogProvider
         return $this->indexedProductsCache;
     }
 
+    private function searchIndex(): TpSoftwareSearchIndex
+    {
+        if ($this->searchIndex instanceof TpSoftwareSearchIndex) {
+            return $this->searchIndex;
+        }
+
+        return $this->resolvedSearchIndex ??= app(TpSoftwareSearchIndex::class);
+    }
+
     private function indexFingerprint(): string
     {
         return $this->indexStore->fingerprint();
@@ -2041,4 +2150,3 @@ class TpSoftwareCatalogService implements CatalogProvider
         ];
     }
 }
-

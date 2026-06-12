@@ -37,12 +37,21 @@
         <div class="d-flex flex-wrap gap-2 align-items-end justify-content-between mb-3">
             <div>
                 <h3 class="mb-0">Pesquisa</h3>
-                <div class="text-muted small mt-1">Query: "{{ $q }}"</div>
+                <div class="text-muted small mt-1">
+                    @if($q !== '') Pesquisa: "{{ $q }}" @else Catálogo completo @endif
+                </div>
             </div>
             <div class="text-muted small">
                 A mostrar {{ $results->count() }} de {{ $results->total() }}
             </div>
         </div>
+
+        @if (!empty($usedFuzzyFallback) && !empty($correctedQuery))
+            <div class="alert alert-info py-2">
+                Não encontrámos resultados suficientes para "{{ $q }}". A mostrar resultados para
+                <a href="{{ url('/loja/pesquisa').'?'.http_build_query(array_merge(request()->except('page'), ['q' => $correctedQuery])) }}" class="alert-link">{{ $correctedQuery }}</a>.
+            </div>
+        @endif
 
         @if ($results->total() === 0)
             <div class="alert alert-secondary">Sem resultados.</div>

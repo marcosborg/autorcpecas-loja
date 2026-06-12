@@ -150,10 +150,10 @@
         .store-searchbar .select2-container .select2-selection--single { height: 44px; border: 0; border-radius: .5rem; }
         .store-searchbar .select2-container .select2-selection--single .select2-selection__rendered { line-height: 44px; }
         .store-searchbar .select2-container .select2-selection--single .select2-selection__arrow { height: 44px; }
-        .store-searchbar .search-split > * { flex: 1 1 0; min-width: 0; }
-        .store-searchbar .search-split > .store-filter-select { flex: 0 0 42%; }
-        .store-searchbar .search-split > .select2-container { flex: 0 0 42% !important; width: auto !important; min-width: 0; }
-        .store-searchbar .search-split > .search-form { flex: 0 0 58%; min-width: 0; }
+        .store-searchbar .search-wrap { width: 100%; }
+        .store-searchbar .search-form > * { min-width: 0; }
+        .store-searchbar .catalog-filter { flex: 0 1 190px; }
+        .store-searchbar .autocomplete-wrap { flex: 1 1 280px; }
         .store-searchbar .search-form .btn { height: 44px; min-width: 92px; white-space: nowrap; }
         .store-searchbar .autocomplete-wrap { position: relative; min-width: 0; }
         .store-searchbar .autocomplete-menu { position: absolute; top: calc(100% + .25rem); left: 0; right: 0; z-index: 1080; background: #fff; border: 1px solid rgba(0, 0, 0, .12); border-radius: .5rem; box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15); max-height: 320px; overflow-y: auto; display: none; }
@@ -435,17 +435,39 @@
     <div class="store-searchbar py-3">
         <div class="container-xl d-flex align-items-center gap-3">
             <div class="search-wrap">
-                <div class="search-split d-flex flex-column flex-md-row gap-2">
-                    @php($headerCategories = $headerCategories ?? ($categories ?? []))
-                    <select class="form-select store-filter-select w-100">
-                        <option value="{{ url('/loja/categorias') }}">{{ config('storefront.catalog_provider') === 'tpsoftware' ? 'Procurar por marca' : 'Procurar por categoria' }}</option>
-                        @foreach (($headerCategories ?? []) as $cat)
-                            <option value="{{ url('/loja/categorias/'.$cat['slug']) }}">{{ $cat['name'] }}</option>
-                        @endforeach
-                    </select>
-
-                    <form class="search-form d-flex flex-grow-1 gap-2" action="{{ url('/loja/pesquisa') }}" method="get" role="search" data-autocomplete-url="{{ url('/loja/pesquisa/sugestoes') }}">
-                        <div class="autocomplete-wrap flex-grow-1">
+                <div class="search-split">
+                    @php($headerCategories = $searchFacets['makes'] ?? ($headerCategories ?? ($categories ?? [])))
+                    @php($headerModels = $searchFacets['models'] ?? [])
+                    @php($headerPieces = $searchFacets['pieces'] ?? [])
+                    <form class="search-form d-flex flex-column flex-xl-row gap-2" action="{{ url('/loja/pesquisa') }}" method="get" role="search" data-autocomplete-url="{{ url('/loja/pesquisa/sugestoes') }}" data-filters-url="{{ url('/loja/pesquisa/filtros') }}">
+                        <select class="form-select catalog-filter" name="make" data-catalog-make aria-label="Marca">
+                            <option value="">Todas as marcas</option>
+                            @foreach ($headerCategories as $cat)
+                                <option value="{{ $cat['slug'] }}" @selected(request('make') === $cat['slug'])>{{ $cat['name'] }}@if(isset($cat['count'])) ({{ $cat['count'] }})@endif</option>
+                            @endforeach
+                        </select>
+                        <select class="form-select catalog-filter" name="model" data-catalog-model data-selected="{{ request('model') }}" aria-label="Modelo" @disabled(trim((string) request('make')) === '')>
+                            <option value="">Todos os modelos</option>
+                            @foreach ($headerModels as $model)
+                                <option value="{{ $model['slug'] }}" @selected(request('model') === $model['slug'])>{{ $model['name'] }} ({{ $model['count'] ?? 0 }})</option>
+                            @endforeach
+                        </select>
+                        <select class="form-select catalog-filter" name="piece" aria-label="Tipo de peça">
+                            <option value="">Todas as peças</option>
+                            @foreach ($headerPieces as $piece)
+                                <option value="{{ $piece['slug'] }}" @selected(request('piece') === $piece['slug'])>{{ $piece['name'] }} ({{ $piece['count'] ?? 0 }})</option>
+                            @endforeach
+                        </select>
+                        <select class="form-select catalog-filter" name="sort" aria-label="Ordenação">
+                            <option value="relevance" @selected(request('sort', 'relevance') === 'relevance')>Mais relevantes</option>
+                            <option value="price_asc" @selected(request('sort') === 'price_asc')>Preço: menor</option>
+                            <option value="price_desc" @selected(request('sort') === 'price_desc')>Preço: maior</option>
+                            <option value="newest" @selected(request('sort') === 'newest')>Mais recentes</option>
+                            <option value="oldest" @selected(request('sort') === 'oldest')>Mais antigos</option>
+                            <option value="name_asc" @selected(request('sort') === 'name_asc')>Nome: A-Z</option>
+                            <option value="name_desc" @selected(request('sort') === 'name_desc')>Nome: Z-A</option>
+                        </select>
+                        <div class="autocomplete-wrap">
                             <input class="form-control" type="search" name="q" value="{{ request('q') }}" placeholder="Procurar por refer&ecirc;ncia, marca ou nome da pe&ccedil;a" aria-label="Procurar por refer&ecirc;ncia, marca ou nome da pe&ccedil;a" autocomplete="off">
                             <div class="autocomplete-menu" data-ref-suggestions role="listbox" aria-label="Sugest&otilde;es de pesquisa"></div>
                         </div>
@@ -740,63 +762,15 @@
 
         var input = form.querySelector('input[name="q"]');
         var menu = form.querySelector('[data-ref-suggestions]');
-        var searchSplit = form.closest('.search-split');
-        var filterSelect = searchSplit
-            ? searchSplit.querySelector('select.store-filter-select')
-            : document.querySelector('select.store-filter-select');
-        var filterDefaultValue = (filterSelect && filterSelect.options.length > 0)
-            ? String(filterSelect.options[0].value || '')
-            : '';
         var endpoint = form.getAttribute('data-autocomplete-url') || '';
         if (!input || !menu || endpoint === '') return;
 
         var debounceTimer = null;
         var abortController = null;
-        var lastFilterSearchTerm = '';
 
         function hideMenu() {
             menu.classList.remove('is-visible');
             menu.innerHTML = '';
-        }
-
-        function normalizeText(value) {
-            return String(value || '')
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .toLowerCase()
-                .trim();
-        }
-
-        function resolveFilterUrlFromTypedTerm() {
-            if (!filterSelect || filterSelect.options.length <= 1) return '';
-
-            var liveSearchField = document.querySelector('.select2-container--open .select2-search__field');
-            var typedTerm = normalizeText(liveSearchField ? liveSearchField.value : lastFilterSearchTerm);
-            if (typedTerm.length < 2) return '';
-
-            var startsWithMatch = '';
-            var containsMatch = '';
-
-            for (var i = 1; i < filterSelect.options.length; i++) {
-                var option = filterSelect.options[i];
-                var label = normalizeText(option.text || '');
-                var value = String(option.value || '');
-                if (!label || !value) continue;
-
-                if (label === typedTerm) {
-                    return value;
-                }
-
-                if (!startsWithMatch && label.indexOf(typedTerm) === 0) {
-                    startsWithMatch = value;
-                }
-
-                if (!containsMatch && label.indexOf(typedTerm) !== -1) {
-                    containsMatch = value;
-                }
-            }
-
-            return startsWithMatch || containsMatch;
         }
 
         function renderMenu(items) {
@@ -815,10 +789,13 @@
                     .replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;');
                 var url = String(item.url || '');
+                var vehicle = [item.make || '', item.model || ''].filter(Boolean).join(' ')
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
                 return '<button type="button" class="autocomplete-item" data-url="' + url + '">' +
                     '<span class="autocomplete-title">' + title + '</span>' +
                     (reference ? '<span class="autocomplete-ref">Ref: ' + reference + '</span>' : '') +
+                    (vehicle ? '<span class="autocomplete-ref">' + vehicle + '</span>' : '') +
                     '</button>';
             }).join('');
 
@@ -866,28 +843,34 @@
             }, 250);
         });
 
-        form.addEventListener('submit', function (event) {
-            var query = String(input.value || '').trim();
-            if (query !== '') return;
-
-            hideMenu();
-
-            var filterUrl = filterSelect ? String(filterSelect.value || '') : '';
-            if (!filterUrl || filterUrl === filterDefaultValue) {
-                filterUrl = resolveFilterUrlFromTypedTerm();
-            }
-
-            if (filterUrl && filterUrl !== filterDefaultValue) {
-                event.preventDefault();
-                window.location.href = filterUrl;
-            }
-        });
-
-        document.addEventListener('input', function (event) {
-            var target = event.target;
-            if (!target || !target.matches || !target.matches('.select2-search__field')) return;
-            lastFilterSearchTerm = String(target.value || '');
-        });
+        var makeSelect = form.querySelector('[data-catalog-make]');
+        var modelSelect = form.querySelector('[data-catalog-model]');
+        var filtersEndpoint = form.getAttribute('data-filters-url') || '';
+        if (makeSelect && modelSelect && filtersEndpoint) {
+            makeSelect.addEventListener('change', function () {
+                var make = String(makeSelect.value || '');
+                modelSelect.innerHTML = '<option value="">A carregar...</option>';
+                modelSelect.disabled = true;
+                if (!make) {
+                    modelSelect.innerHTML = '<option value="">Todos os modelos</option>';
+                    return;
+                }
+                fetch(filtersEndpoint + '?make=' + encodeURIComponent(make), { headers: { 'Accept': 'application/json' } })
+                    .then(function (response) { return response.ok ? response.json() : { models: [] }; })
+                    .then(function (data) {
+                        var models = Array.isArray(data.models) ? data.models : [];
+                        modelSelect.innerHTML = '<option value="">Todos os modelos</option>' + models.map(function (model) {
+                            var slug = String(model.slug || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                            var name = String(model.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                            return '<option value="' + slug + '">' + name + ' (' + Number(model.count || 0) + ')</option>';
+                        }).join('');
+                        modelSelect.disabled = false;
+                    })
+                    .catch(function () {
+                        modelSelect.innerHTML = '<option value="">Não foi possível carregar</option>';
+                    });
+            });
+        }
 
         menu.addEventListener('click', function (event) {
             var button = event.target.closest('button[data-url]');
@@ -911,11 +894,6 @@
             }
         });
 
-        if (filterSelect) {
-            filterSelect.addEventListener('change', function () {
-                lastFilterSearchTerm = '';
-            });
-        }
     })();
 
     (function () {

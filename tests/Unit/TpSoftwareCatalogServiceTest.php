@@ -13,6 +13,7 @@ class TpSoftwareCatalogServiceTest extends TestCase
     public function test_exact_reference_search_prefers_live_tp_results_over_stale_index(): void
     {
         config()->set('tpsoftware.catalog.index_enabled', true);
+        config()->set('tpsoftware.catalog.live_reference_validation_enabled', true);
         config()->set('tpsoftware.cache_store', 'array');
         Cache::store('array')->flush();
 
@@ -124,6 +125,7 @@ class TpSoftwareCatalogServiceTest extends TestCase
     public function test_exact_reference_uses_part_price_when_price_fields_are_missing(): void
     {
         config()->set('tpsoftware.catalog.index_enabled', true);
+        config()->set('tpsoftware.catalog.live_reference_validation_enabled', true);
         config()->set('tpsoftware.cache_store', 'array');
         Cache::store('array')->flush();
 
