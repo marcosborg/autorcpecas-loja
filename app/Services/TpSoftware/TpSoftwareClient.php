@@ -139,6 +139,14 @@ class TpSoftwareClient
                 return true;
             });
 
+        $dnsServers = trim((string) config('tpsoftware.dns_servers', ''));
+
+        if ($dnsServers !== '' && defined('CURLOPT_DNS_SERVERS')) {
+            $req = $req->withOptions([
+                'curl' => [CURLOPT_DNS_SERVERS => $dnsServers],
+            ]);
+        }
+
         if ((bool) config('tpsoftware.use_auth_header', false)) {
             $req = $req->withToken($token);
         }

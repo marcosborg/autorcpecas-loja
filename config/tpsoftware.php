@@ -19,6 +19,7 @@ return [
     'timeout_seconds' => (int) env('TPSOFTWARE_TIMEOUT_SECONDS', 15),
     'retries' => (int) env('TPSOFTWARE_RETRIES', 1),
     'retry_sleep_ms' => (int) env('TPSOFTWARE_RETRY_SLEEP_MS', 250),
+    'dns_servers' => env('TPSOFTWARE_DNS_SERVERS'),
 
     'cache_store' => env('TPSOFTWARE_CACHE_STORE', 'file'),
     'cache_ttl_seconds' => (int) env('TPSOFTWARE_CACHE_TTL_SECONDS', 600),
@@ -60,4 +61,3 @@ return [
         'method' => env('TPSOFTWARE_SALES_SYNC_METHOD', 'auto'),
     ],
 ];
-
