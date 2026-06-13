@@ -436,9 +436,9 @@
         <div class="container-xl d-flex align-items-center gap-3">
             <div class="search-wrap">
                 <div class="search-split">
-                    @php($headerCategories = $searchFacets['makes'] ?? ($headerCategories ?? ($categories ?? [])))
-                    @php($headerModels = $searchFacets['models'] ?? [])
-                    @php($headerPieces = $searchFacets['pieces'] ?? [])
+                    @php($headerCategories = $searchFacets['makes'] ?? ($globalSearchFacets['makes'] ?? ($headerCategories ?? ($categories ?? []))))
+                    @php($headerModels = $searchFacets['models'] ?? ($globalSearchFacets['models'] ?? []))
+                    @php($headerPieces = $searchFacets['pieces'] ?? ($globalSearchFacets['pieces'] ?? []))
                     <form class="search-form d-flex flex-column flex-xl-row gap-2" action="{{ url('/loja/pesquisa') }}" method="get" role="search" data-autocomplete-url="{{ url('/loja/pesquisa/sugestoes') }}" data-filters-url="{{ url('/loja/pesquisa/filtros') }}">
                         <select class="form-select catalog-filter" name="make" data-catalog-make aria-label="Marca">
                             <option value="">Todas as marcas</option>

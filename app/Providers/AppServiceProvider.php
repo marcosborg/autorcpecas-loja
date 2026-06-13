@@ -7,6 +7,8 @@ use App\Models\CmsPage;
 use App\Models\Order;
 use App\Observers\OrderObserver;
 use App\Services\Catalog\CatalogProvider;
+use App\Services\Catalog\AdvancedCatalogProvider;
+use App\Services\Catalog\CatalogSearchCriteria;
 use App\Services\Store\CartService;
 use App\Services\Database\DbEnvironment;
 use App\Services\Telepecas\TelepecasCatalogService;
@@ -14,6 +16,7 @@ use App\Services\TpSoftware\TpSoftwareCatalogService;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
 
@@ -128,6 +131,29 @@ class AppServiceProvider extends ServiceProvider
             $view->with('storeCartCount', $count);
             $view->with('headerMenuItems', $menuItems);
             $view->with('footerCmsPages', $footerCmsPages);
+
+            $viewData = $view->getData();
+            if (! empty($viewData['searchFacets'] ?? [])) {
+                return;
+            }
+
+            try {
+                /** @var CatalogProvider $catalog */
+                $catalog = app(CatalogProvider::class);
+                if ($catalog instanceof AdvancedCatalogProvider) {
+                    $make = trim((string) request()->query('make', ''));
+                    $cacheKey = 'storefront:search-facets:'.($make !== '' ? sha1($make) : 'all');
+                    $facets = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($catalog, $make): array {
+                        return $catalog->searchAdvanced(new CatalogSearchCriteria(
+                            make: $make,
+                            perPage: 1,
+                        ))->facets;
+                    });
+                    $view->with('globalSearchFacets', $facets);
+                }
+            } catch (\Throwable) {
+                $view->with('globalSearchFacets', []);
+            }
         });
     }
 }
