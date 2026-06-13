@@ -56,6 +56,12 @@ class TpSoftwareSearchIndexTest extends TestCase
         $filtered = $index->search(new CatalogSearchCriteria(make: 'citroen', model: 'c4', piece: 'botao'));
         $this->assertSame(1, $filtered->paginator->total());
 
+        $modelFacets = $index->search(new CatalogSearchCriteria(make: 'citroen', model: 'c4'));
+        $this->assertSame(
+            [['slug' => 'botao', 'name' => 'Botão', 'count' => 1]],
+            $modelFacets->facets['pieces'],
+        );
+
         $fuzzy = $index->search(new CatalogSearchCriteria(query: 'citroem'));
         $this->assertTrue($fuzzy->usedFuzzyFallback);
         $this->assertSame('citroen', $fuzzy->correctedQuery);

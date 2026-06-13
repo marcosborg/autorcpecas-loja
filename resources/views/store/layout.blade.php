@@ -452,7 +452,7 @@
                                 <option value="{{ $model['slug'] }}" @selected(request('model') === $model['slug'])>{{ $model['name'] }} ({{ $model['count'] ?? 0 }})</option>
                             @endforeach
                         </select>
-                        <select class="form-select catalog-filter" name="piece" aria-label="Tipo de peça">
+                        <select class="form-select catalog-filter" name="piece" data-catalog-piece data-selected="{{ request('piece') }}" aria-label="Tipo de peça">
                             <option value="">Todas as peças</option>
                             @foreach ($headerPieces as $piece)
                                 <option value="{{ $piece['slug'] }}" @selected(request('piece') === $piece['slug'])>{{ $piece['name'] }} ({{ $piece['count'] ?? 0 }})</option>
@@ -845,30 +845,63 @@
 
         var makeSelect = form.querySelector('[data-catalog-make]');
         var modelSelect = form.querySelector('[data-catalog-model]');
+        var pieceSelect = form.querySelector('[data-catalog-piece]');
         var filtersEndpoint = form.getAttribute('data-filters-url') || '';
-        if (makeSelect && modelSelect && filtersEndpoint) {
-            makeSelect.addEventListener('change', function () {
+        if (makeSelect && modelSelect && pieceSelect && filtersEndpoint) {
+            function escapeAttribute(value) {
+                return String(value || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            }
+
+            function escapeText(value) {
+                return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            }
+
+            function renderOptions(select, options, emptyLabel, selected) {
+                select.innerHTML = '<option value="">' + emptyLabel + '</option>' + options.map(function (option) {
+                    var slug = String(option.slug || '');
+                    return '<option value="' + escapeAttribute(slug) + '"' + (slug === selected ? ' selected' : '') + '>' +
+                        escapeText(option.name || '') + ' (' + Number(option.count || 0) + ')</option>';
+                }).join('');
+            }
+
+            function loadFilters(includeModels) {
                 var make = String(makeSelect.value || '');
-                modelSelect.innerHTML = '<option value="">A carregar...</option>';
-                modelSelect.disabled = true;
-                if (!make) {
-                    modelSelect.innerHTML = '<option value="">Todos os modelos</option>';
-                    return;
+                var model = includeModels ? '' : String(modelSelect.value || '');
+                var selectedPiece = String(pieceSelect.value || '');
+
+                pieceSelect.innerHTML = '<option value="">A carregar peças...</option>';
+                pieceSelect.disabled = true;
+                if (includeModels) {
+                    modelSelect.innerHTML = '<option value="">A carregar modelos...</option>';
+                    modelSelect.disabled = true;
                 }
-                fetch(filtersEndpoint + '?make=' + encodeURIComponent(make), { headers: { 'Accept': 'application/json' } })
-                    .then(function (response) { return response.ok ? response.json() : { models: [] }; })
+
+                var params = new URLSearchParams({ make: make, model: model });
+                fetch(filtersEndpoint + '?' + params.toString(), { headers: { 'Accept': 'application/json' } })
+                    .then(function (response) { return response.ok ? response.json() : { models: [], pieces: [] }; })
                     .then(function (data) {
-                        var models = Array.isArray(data.models) ? data.models : [];
-                        modelSelect.innerHTML = '<option value="">Todos os modelos</option>' + models.map(function (model) {
-                            var slug = String(model.slug || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-                            var name = String(model.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                            return '<option value="' + slug + '">' + name + ' (' + Number(model.count || 0) + ')</option>';
-                        }).join('');
-                        modelSelect.disabled = false;
+                        if (includeModels) {
+                            var models = Array.isArray(data.models) ? data.models : [];
+                            renderOptions(modelSelect, models, 'Todos os modelos', '');
+                            modelSelect.disabled = make === '';
+                        }
+                        var pieces = Array.isArray(data.pieces) ? data.pieces : [];
+                        renderOptions(pieceSelect, pieces, 'Todas as peças', selectedPiece);
+                        pieceSelect.disabled = false;
                     })
                     .catch(function () {
-                        modelSelect.innerHTML = '<option value="">Não foi possível carregar</option>';
+                        if (includeModels) {
+                            modelSelect.innerHTML = '<option value="">Não foi possível carregar</option>';
+                        }
+                        pieceSelect.innerHTML = '<option value="">Não foi possível carregar</option>';
                     });
+            }
+
+            makeSelect.addEventListener('change', function () {
+                loadFilters(true);
+            });
+            modelSelect.addEventListener('change', function () {
+                loadFilters(false);
             });
         }
 

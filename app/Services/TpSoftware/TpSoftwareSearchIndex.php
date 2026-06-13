@@ -396,7 +396,7 @@ final class TpSoftwareSearchIndex
                 facets: $criteria->includeFacets ? [
                     'makes' => $this->makes(),
                     'models' => $criteria->make !== '' ? $this->models($criteria->make) : [],
-                    'pieces' => $this->pieces(),
+                    'pieces' => $this->piecesForCriteria($criteria, $query),
                 ] : [],
                 correctedQuery: $fuzzy ? $query : null,
                 usedFuzzyFallback: $fuzzy,
@@ -453,6 +453,53 @@ final class TpSoftwareSearchIndex
         unset($term);
 
         return $changed ? implode(' ', $terms) : null;
+    }
+
+    /** @return list<array{slug: string, name: string, count: int}> */
+    private function piecesForCriteria(CatalogSearchCriteria $criteria, string $query): array
+    {
+        $db = $this->open();
+        try {
+            $where = ["p.piece_key != ''"];
+            $bindings = [];
+            $join = '';
+            $normalizedQuery = $this->normalizer->normalize($query);
+
+            if ($normalizedQuery !== '') {
+                $join = 'JOIN products_fts ON products_fts.rowid = p.product_pk';
+                $where[] = 'products_fts MATCH :fts';
+                $bindings[':fts'] = $this->normalizer->ftsQuery($normalizedQuery);
+            }
+            if ($criteria->make !== '') {
+                $where[] = 'p.make_key = :make';
+                $bindings[':make'] = $this->normalizer->makeKey($criteria->make);
+            }
+            if ($criteria->model !== '') {
+                $where[] = 'p.model_key = :model';
+                $bindings[':model'] = $this->normalizer->normalize($criteria->model);
+            }
+
+            $stmt = $db->prepare('SELECT p.piece_key AS option_key, MIN(p.piece_name) AS option_name, COUNT(*) AS total
+                FROM products p '.$join.' WHERE '.implode(' AND ', $where).'
+                GROUP BY p.piece_key ORDER BY option_name COLLATE NOCASE');
+            foreach ($bindings as $key => $value) {
+                $this->bind($stmt, $key, $value);
+            }
+
+            $result = $stmt->execute();
+            $options = [];
+            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+                $options[] = [
+                    'slug' => Str::slug((string) $row['option_key']),
+                    'name' => (string) $row['option_name'],
+                    'count' => (int) $row['total'],
+                ];
+            }
+
+            return $options;
+        } finally {
+            $db->close();
+        }
     }
 
     private function createSchema(SQLite3 $db): void

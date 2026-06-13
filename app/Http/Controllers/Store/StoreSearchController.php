@@ -87,7 +87,9 @@ class StoreSearchController extends Controller
 
         try {
             $result = $catalog->searchAdvanced(new CatalogSearchCriteria(
+                query: trim((string) $request->query('q', '')),
                 make: trim((string) $request->query('make', '')),
+                model: trim((string) $request->query('model', '')),
                 perPage: 1,
             ));
         } catch (\RuntimeException $e) {

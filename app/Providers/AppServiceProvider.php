@@ -142,10 +142,12 @@ class AppServiceProvider extends ServiceProvider
                 $catalog = app(CatalogProvider::class);
                 if ($catalog instanceof AdvancedCatalogProvider) {
                     $make = trim((string) request()->query('make', ''));
-                    $cacheKey = 'storefront:search-facets:'.($make !== '' ? sha1($make) : 'all');
-                    $facets = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($catalog, $make): array {
+                    $model = trim((string) request()->query('model', ''));
+                    $cacheKey = 'storefront:search-facets:'.sha1($make.'|'.$model);
+                    $facets = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($catalog, $make, $model): array {
                         return $catalog->searchAdvanced(new CatalogSearchCriteria(
                             make: $make,
+                            model: $model,
                             perPage: 1,
                         ))->facets;
                     });
