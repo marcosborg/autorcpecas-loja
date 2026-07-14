@@ -43,6 +43,15 @@ class OrdersTable
                 TextColumn::make('shipping_method_snapshot.name')
                     ->label('Transportadora')
                     ->toggleable(),
+                TextColumn::make('weight_audit')
+                    ->label('Peso')
+                    ->state(fn (Order $record): string => $record->items()
+                        ->whereNull('weight_source')
+                        ->where('weight_kg', 1)
+                        ->exists() ? 'Por confirmar' : 'Validado')
+                    ->badge()
+                    ->color(fn (string $state): string => $state === 'Por confirmar' ? 'warning' : 'success')
+                    ->toggleable(),
                 TextColumn::make('total_inc_vat')
                     ->label('Total c/ IVA')
                     ->money('EUR')

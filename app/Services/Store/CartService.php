@@ -4,6 +4,7 @@ namespace App\Services\Store;
 
 use App\Models\Cart;
 use App\Models\CartItem;
+use App\Models\ProductCategoryWeight;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -41,7 +42,7 @@ class CartService
         }
 
         $unitPriceExVat = $this->toFloat($product['price_ex_vat'] ?? ($product['price'] ?? 0));
-        $weightKg = $this->extractWeightKg($product);
+        [$weightKg, $weightSource] = $this->resolveWeight($product);
 
         $item = CartItem::query()->firstOrNew([
             'cart_id' => $cart->id,
@@ -54,6 +55,7 @@ class CartService
         // Pecas usadas: cada item e unico, sem multiplas quantidades.
         $item->quantity = 1;
         $item->weight_kg = $weightKg;
+        $item->weight_source = $weightSource;
         $item->product_payload = $product;
         $item->save();
 
@@ -90,7 +92,8 @@ class CartService
      * @return array{
      *   subtotal_ex_vat: float,
      *   total_qty: int,
-     *   total_weight_kg: float
+     *   total_weight_kg: float,
+     *   weight_known: bool
      * }
      */
     public function totals(Cart $cart): array
@@ -98,18 +101,23 @@ class CartService
         $subtotal = 0.0;
         $qty = 0;
         $weight = 0.0;
+        $weightKnown = true;
 
         foreach ($cart->items as $item) {
             $lineQty = (int) $item->quantity;
             $qty += $lineQty;
             $subtotal += ((float) $item->unit_price_ex_vat * $lineQty);
             $weight += ((float) $item->weight_kg * $lineQty);
+            if ($item->weight_source === 'missing') {
+                $weightKnown = false;
+            }
         }
 
         return [
             'subtotal_ex_vat' => round($subtotal, 2),
             'total_qty' => $qty,
             'total_weight_kg' => round($weight, 3),
+            'weight_known' => $weightKnown,
         ];
     }
 
@@ -124,7 +132,7 @@ class CartService
     /**
      * @param  array<string, mixed>  $product
      */
-    private function extractWeightKg(array $product): float
+    private function resolveWeight(array $product): array
     {
         $candidates = [
             $product['weight_kg'] ?? null,
@@ -132,15 +140,28 @@ class CartService
             data_get($product, 'raw.weight'),
             data_get($product, 'raw.net_weight'),
             data_get($product, 'raw.gross_weight'),
+            data_get($product, 'raw.parts_weight'),
         ];
 
         foreach ($candidates as $value) {
             if (is_numeric($value) && (float) $value > 0) {
-                return round((float) $value, 3);
+                return [round((float) $value, 3), 'telepecas'];
             }
         }
 
-        return 1.0;
+        $category = trim((string) ($product['piece_name'] ?? ''));
+        if ($category !== '') {
+            $estimate = ProductCategoryWeight::query()
+                ->where('active', true)
+                ->whereRaw('LOWER(category) = ?', [mb_strtolower($category, 'UTF-8')])
+                ->value('weight_kg');
+
+            if (is_numeric($estimate) && (float) $estimate > 0) {
+                return [round((float) $estimate, 3), 'category_estimate'];
+            }
+        }
+
+        return [0.0, 'missing'];
     }
 
     private function toFloat(mixed $value): float

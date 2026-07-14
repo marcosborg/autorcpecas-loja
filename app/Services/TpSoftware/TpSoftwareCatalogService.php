@@ -2,9 +2,9 @@
 
 namespace App\Services\TpSoftware;
 
+use App\Services\Catalog\AdvancedCatalogProvider;
 use App\Services\Catalog\CatalogSearchCriteria;
 use App\Services\Catalog\CatalogSearchResult;
-use App\Services\Catalog\AdvancedCatalogProvider;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -13,18 +13,19 @@ class TpSoftwareCatalogService implements AdvancedCatalogProvider
 {
     /** @var array<string, int>|null */
     private ?array $indexPositionMap = null;
+
     /** @var list<array<string, mixed>>|null */
     private ?array $indexedProductsCache = null;
+
     private bool $indexedProductsLoaded = false;
+
     private ?TpSoftwareSearchIndex $resolvedSearchIndex = null;
 
     public function __construct(
         private readonly TpSoftwareClient $client,
         private readonly TpSoftwareIndexStore $indexStore,
         private readonly ?TpSoftwareSearchIndex $searchIndex = null,
-    )
-    {
-    }
+    ) {}
 
     /**
      * Constroi um indice local (cache) com todos os produtos necessarios para
@@ -1009,7 +1010,6 @@ class TpSoftwareCatalogService implements AdvancedCatalogProvider
     }
 
     /**
-     * @param  mixed  $data
      * @return list<array<string, mixed>>
      */
     private function extractList(mixed $data): array
@@ -1031,9 +1031,6 @@ class TpSoftwareCatalogService implements AdvancedCatalogProvider
         return [];
     }
 
-    /**
-     * @param  mixed  $data
-     */
     private function extractTotalCount(mixed $data): int
     {
         if (! is_array($data)) {
@@ -1048,7 +1045,6 @@ class TpSoftwareCatalogService implements AdvancedCatalogProvider
 
         return 0;
     }
-
 
     /**
      * @param  array<string, mixed>  $raw
@@ -1094,6 +1090,9 @@ class TpSoftwareCatalogService implements AdvancedCatalogProvider
             'price' => $price,
             'vat' => $vat,
             'price_ex_vat' => $this->priceWithoutVat($price, $vat),
+            'weight_kg' => is_numeric(data_get($raw, 'parts_weight'))
+                ? round((float) data_get($raw, 'parts_weight'), 3)
+                : null,
             'stock' => data_get($raw, 'quantity'),
             'images' => array_values(array_unique(array_filter($imageUrls))),
             'cover_image' => is_string($coverUrl) && $coverUrl !== '' ? $coverUrl : null,
@@ -1760,6 +1759,7 @@ class TpSoftwareCatalogService implements AdvancedCatalogProvider
             $isMain = data_get($item, 'is_main');
             if ($isMain === 1 || $isMain === '1' || $isMain === true) {
                 $main[] = $code;
+
                 continue;
             }
 

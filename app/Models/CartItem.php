@@ -15,6 +15,7 @@ class CartItem extends Model
         'unit_price_ex_vat',
         'quantity',
         'weight_kg',
+        'weight_source',
         'product_payload',
     ];
 
@@ -30,4 +31,3 @@ class CartItem extends Model
         return $this->belongsTo(Cart::class);
     }
 }
-

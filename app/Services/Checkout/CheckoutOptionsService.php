@@ -4,6 +4,7 @@ namespace App\Services\Checkout;
 
 use App\Models\PaymentMethod;
 use App\Models\ShippingCarrier;
+use App\Models\ShippingRate;
 use App\Models\ShippingZone;
 use App\Models\ShippingZoneCountry;
 
@@ -22,8 +23,8 @@ class CheckoutOptionsService
         string $countryIso2 = 'PT',
         ?string $zoneCode = null,
         ?string $postalCode = null,
-    ): array
-    {
+        bool $weightKnown = true,
+    ): array {
         $countryIso2 = mb_strtoupper(trim($countryIso2), 'UTF-8');
         $zone = $this->resolveZone($countryIso2, $zoneCode, $postalCode);
         $zoneId = $zone?->id;
@@ -33,6 +34,16 @@ class CheckoutOptionsService
                 'zone' => null,
                 'carriers' => [],
                 'payment_methods' => [],
+                'unavailable_reason' => 'zone_without_rate',
+            ];
+        }
+
+        if (! $weightKnown) {
+            return [
+                'zone' => ['id' => $zone->id, 'code' => $zone->code, 'name' => $zone->name],
+                'carriers' => [],
+                'payment_methods' => [],
+                'unavailable_reason' => 'missing_weight',
             ];
         }
 
@@ -48,6 +59,11 @@ class CheckoutOptionsService
             ],
             'carriers' => $carrierQuotes,
             'payment_methods' => $paymentMethods,
+            'unavailable_reason' => $carrierQuotes === []
+                ? (ShippingRate::query()->where('shipping_zone_id', $zoneId)->where('active', true)->exists()
+                    ? 'out_of_range'
+                    : 'zone_without_rate')
+                : null,
         ];
     }
 
@@ -55,9 +71,17 @@ class CheckoutOptionsService
     {
         $zoneCode = trim((string) $zoneCode);
         if ($countryIso2 === 'PT') {
-            if ($zoneCode === '') {
-                $zoneCode = $this->inferPortugueseZoneCode((string) $postalCode);
+            if ($zoneCode !== '') {
+                $configuredZone = ShippingZone::query()
+                    ->where('active', true)
+                    ->where('code', $zoneCode)
+                    ->first();
+                if ($configuredZone) {
+                    return $configuredZone;
+                }
             }
+
+            $zoneCode = $this->resolvePortugueseZoneCode($zoneCode, (string) $postalCode);
 
             $zone = ShippingZone::query()
                 ->where('active', true)
@@ -83,19 +107,26 @@ class CheckoutOptionsService
             ->first();
     }
 
-    private function inferPortugueseZoneCode(string $postalCode): string
+    private function resolvePortugueseZoneCode(string $zoneCode, string $postalCode): string
     {
         $postalCode = trim($postalCode);
+        if (str_starts_with($zoneCode, 'PS_ZONE_')) {
+            return $zoneCode;
+        }
+
         if (preg_match('/^\d{4}/', $postalCode, $matches) !== 1) {
-            return 'PT_MAINLAND';
+            return $zoneCode === 'PT_ISLANDS' ? 'PS_ZONE_16' : 'PS_ZONE_9';
         }
 
         $prefix = (int) substr((string) $matches[0], 0, 2);
-        if ($prefix >= 90 && $prefix <= 99) {
-            return 'PT_ISLANDS';
+        if ($prefix >= 90 && $prefix <= 94) {
+            return 'PS_ZONE_19';
+        }
+        if ($prefix >= 95 && $prefix <= 99) {
+            return 'PS_ZONE_16';
         }
 
-        return 'PT_MAINLAND';
+        return 'PS_ZONE_9';
     }
 
     /**
@@ -145,14 +176,8 @@ class CheckoutOptionsService
                     'price_ex_vat' => 0.0,
                     'basis' => $basis,
                 ];
-                continue;
-            }
 
-            if (! $rate && (int) $carrier->range_behavior === 0) {
-                $rate = $carrier->rates
-                    ->where('calc_type', $basis)
-                    ->sortBy('range_to')
-                    ->last();
+                continue;
             }
 
             if (! $rate) {

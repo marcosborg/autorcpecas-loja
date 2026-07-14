@@ -4,11 +4,12 @@ namespace App\Filament\Resources\Orders\Schemas;
 
 use App\Filament\Resources\Orders\OrderResource;
 use App\Models\Order;
+use App\Support\ProductUrl;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\Placeholder;
 use Filament\Schemas\Schema;
 use Illuminate\Support\HtmlString;
 
@@ -117,7 +118,7 @@ class OrderForm
     }
 
     /**
-     * @param array<string, mixed>|null $snapshot
+     * @param  array<string, mixed>|null  $snapshot
      */
     private static function formatAddress(?array $snapshot): string
     {
@@ -163,6 +164,17 @@ class OrderForm
             $qty = (int) $item->quantity;
             $unit = number_format((float) $item->unit_price_ex_vat, 2, ',', ' ');
             $line = number_format((float) $item->line_total_ex_vat, 2, ',', ' ');
+            $weight = number_format((float) $item->weight_kg, 3, ',', ' ');
+            $weightSource = match ($item->weight_source) {
+                'telepecas' => 'TelePeças',
+                'category_estimate' => 'Estimado',
+                'missing' => 'Em falta',
+                default => (float) $item->weight_kg === 1.0 ? 'Por confirmar' : 'Legado',
+            };
+            $product = is_array($item->payload) ? $item->payload : [];
+            $product['id'] = $product['id'] ?? $item->product_key;
+            $product['reference'] = $product['reference'] ?? $item->reference;
+            $productUrl = e(ProductUrl::url($product));
 
             return '<tr>'
                 .'<td style="padding:6px 8px;border-bottom:1px solid #eee;">'.$title.'</td>'
@@ -170,6 +182,11 @@ class OrderForm
                 .'<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">'.$qty.'</td>'
                 .'<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">'.$unit.'</td>'
                 .'<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">'.$line.'</td>'
+                .'<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;">'.$weight.' kg<br><small>'.$weightSource.'</small></td>'
+                .'<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;">'
+                .'<a href="'.$productUrl.'" target="_blank" rel="noopener noreferrer" '
+                .'style="display:inline-block;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-weight:600;text-decoration:none;">Ver peça ↗</a>'
+                .'</td>'
                 .'</tr>';
         })->implode('');
 
@@ -181,6 +198,8 @@ class OrderForm
             .'<th style="padding:6px 8px;text-align:right;border-bottom:1px solid #ddd;">Qtd</th>'
             .'<th style="padding:6px 8px;text-align:right;border-bottom:1px solid #ddd;">Unit s/ IVA</th>'
             .'<th style="padding:6px 8px;text-align:right;border-bottom:1px solid #ddd;">Total s/ IVA</th>'
+            .'<th style="padding:6px 8px;text-align:right;border-bottom:1px solid #ddd;">Peso</th>'
+            .'<th style="padding:6px 8px;text-align:right;border-bottom:1px solid #ddd;"><span class="sr-only">Abrir produto</span></th>'
             .'</tr></thead>'
             .'<tbody>'.$rows.'</tbody>'
             .'</table>'

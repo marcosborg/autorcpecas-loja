@@ -22,8 +22,7 @@ class StoreCheckoutService
         private readonly OrderEmailService $orderEmails,
         private readonly SibsCheckoutService $sibsCheckout,
         private readonly CheckoutVatService $vatService,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{
@@ -43,6 +42,7 @@ class StoreCheckoutService
             (string) $shippingAddress->country_iso2,
             (string) ($shippingAddress->zone_code ?? ''),
             (string) ($shippingAddress->postal_code ?? ''),
+            (bool) $totals['weight_known'],
         );
 
         return [
@@ -138,6 +138,7 @@ class StoreCheckoutService
                     'unit_price_ex_vat' => (float) $item->unit_price_ex_vat,
                     'line_total_ex_vat' => round((float) $item->unit_price_ex_vat * (int) $item->quantity, 2),
                     'weight_kg' => (float) $item->weight_kg,
+                    'weight_source' => $item->weight_source,
                     'payload' => $item->product_payload,
                 ]);
             }

@@ -134,4 +134,50 @@ class CheckoutOptionsServiceTest extends TestCase
         $this->assertSame('Acores e Madeira', $quote['zone']['name']);
         $this->assertSame(12.50, (float) $quote['carriers'][0]['price_ex_vat']);
     }
+
+    public function test_quote_does_not_reuse_last_rate_when_weight_is_out_of_range(): void
+    {
+        $zone = ShippingZone::query()->create(['code' => 'PS_ZONE_9', 'name' => 'Continente', 'active' => true, 'position' => 1]);
+        $carrier = ShippingCarrier::query()->create([
+            'code' => 'gls', 'name' => 'GLS', 'rate_basis' => 'weight', 'active' => true,
+            'position' => 1, 'range_behavior' => 0,
+        ]);
+        ShippingRate::query()->create([
+            'shipping_carrier_id' => $carrier->id, 'shipping_zone_id' => $zone->id,
+            'calc_type' => 'weight', 'range_from' => 0, 'range_to' => 120,
+            'price_ex_vat' => 50, 'handling_fee_ex_vat' => 0, 'active' => true,
+        ]);
+
+        $quote = app(CheckoutOptionsService::class)->quote(500, 150, 'PT', null, '2700-100');
+
+        $this->assertSame([], $quote['carriers']);
+        $this->assertSame('out_of_range', $quote['unavailable_reason']);
+    }
+
+    public function test_quote_requires_consultation_when_weight_is_unknown(): void
+    {
+        $zone = ShippingZone::query()->create(['code' => 'PS_ZONE_9', 'name' => 'Continente', 'active' => true, 'position' => 1]);
+
+        $quote = app(CheckoutOptionsService::class)->quote(100, 0, 'PT', null, '2700-100', false);
+
+        $this->assertSame([], $quote['carriers']);
+        $this->assertSame('missing_weight', $quote['unavailable_reason']);
+    }
+
+    public function test_portuguese_postcodes_resolve_mainland_madeira_and_azores_zones(): void
+    {
+        foreach ([
+            'PS_ZONE_9' => 'Continente',
+            'PS_ZONE_19' => 'Madeira',
+            'PS_ZONE_16' => 'Açores',
+        ] as $code => $name) {
+            ShippingZone::query()->create(['code' => $code, 'name' => $name, 'active' => true, 'position' => 1]);
+        }
+
+        $service = app(CheckoutOptionsService::class);
+
+        $this->assertSame('PS_ZONE_9', $service->quote(10, 1, 'PT', null, '2700-100')['zone']['code']);
+        $this->assertSame('PS_ZONE_19', $service->quote(10, 1, 'PT', 'PT_ISLANDS', '9000-100')['zone']['code']);
+        $this->assertSame('PS_ZONE_16', $service->quote(10, 1, 'PT', 'PT_ISLANDS', '9500-100')['zone']['code']);
+    }
 }

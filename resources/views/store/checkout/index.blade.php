@@ -50,7 +50,17 @@
                                     <span>{{ number_format((float) ($carrier['price_ex_vat'] ?? 0), 2, ',', ' ') }} EUR <small class="text-muted">sem IVA</small></span>
                                 </label>
                             @empty
-                                <div class="alert alert-warning mb-0">Sem transportadoras disponiveis para esta morada.</div>
+                                @php($shippingReason = $quote['unavailable_reason'] ?? null)
+                                <div class="alert alert-warning mb-0">
+                                    @if ($shippingReason === 'missing_weight')
+                                        Transporte sob consulta: não foi possível determinar o peso de uma ou mais peças.
+                                    @elseif ($shippingReason === 'out_of_range')
+                                        Transporte sob consulta: o peso da encomenda excede as faixas disponíveis.
+                                    @else
+                                        Transporte sob consulta: não existem tarifas para esta morada.
+                                    @endif
+                                    Contacta-nos para receber uma cotação.
+                                </div>
                             @endforelse
                         </div>
                     </div>
@@ -92,7 +102,7 @@
                                 <strong>{{ number_format((float) $totals['subtotal_ex_vat'], 2, ',', ' ') }} EUR</strong>
                             </div>
                             <div class="text-muted small mb-3">Envio e taxa de pagamento calculados apos selecao.</div>
-                            <button class="btn btn-primary w-100" type="submit">Finalizar encomenda</button>
+                            <button class="btn btn-primary w-100" type="submit" @disabled(count($quote['carriers'] ?? []) === 0 || count($quote['payment_methods'] ?? []) === 0)>Finalizar encomenda</button>
                         </div>
                     </div>
                 </div>
@@ -100,4 +110,3 @@
         </form>
     </div>
 @endsection
-

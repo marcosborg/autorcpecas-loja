@@ -16,6 +16,7 @@ class OrderItem extends Model
         'unit_price_ex_vat',
         'line_total_ex_vat',
         'weight_kg',
+        'weight_source',
         'payload',
     ];
 
@@ -32,4 +33,3 @@ class OrderItem extends Model
         return $this->belongsTo(Order::class);
     }
 }
-
