@@ -41,6 +41,20 @@ class TpSoftwareSearchIndexTest extends TestCase
         $this->assertSame(1, $index->search(new CatalogSearchCriteria(query: 'VW'))->paginator->total());
     }
 
+    public function test_parachoques_alias_matches_spaced_and_hyphenated_names(): void
+    {
+        $index = app(TpSoftwareSearchIndex::class);
+        $products = [
+            ['id' => 10, 'reference' => 'PC-001', 'title' => 'Para-choques dianteiro', 'description' => '', 'make_name' => 'Peugeot', 'model_name' => '208', 'piece_name' => 'Para choques', 'part_code' => '', 'price_ex_vat' => 120, 'created_at' => '2026-01-01'],
+        ];
+        $index->build($products, count($products));
+
+        foreach (['parachoques', 'para choques', 'para-choques'] as $query) {
+            $result = $index->search(new CatalogSearchCriteria(query: $query));
+            $this->assertSame(1, $result->paginator->total(), $query);
+        }
+    }
+
     public function test_filters_relevance_fuzzy_and_integrity(): void
     {
         $index = app(TpSoftwareSearchIndex::class);

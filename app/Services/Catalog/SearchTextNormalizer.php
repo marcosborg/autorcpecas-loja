@@ -7,6 +7,11 @@ use Illuminate\Support\Str;
 final class SearchTextNormalizer
 {
     /** @var array<string, string> */
+    private const SEARCH_ALIASES = [
+        'parachoques' => 'para choques',
+    ];
+
+    /** @var array<string, string> */
     private const MAKE_ALIASES = [
         'vw' => 'volkswagen',
         'volkswagen' => 'volkswagen',
@@ -26,6 +31,11 @@ final class SearchTextNormalizer
 
         $value = Str::ascii(mb_strtolower($value, 'UTF-8'));
         $value = preg_replace('/[^a-z0-9]+/', ' ', $value) ?? $value;
+        $value = preg_replace_callback(
+            '/\b('.implode('|', array_map(static fn (string $alias): string => preg_quote($alias, '/'), array_keys(self::SEARCH_ALIASES))).')\b/',
+            static fn (array $match): string => self::SEARCH_ALIASES[$match[1]],
+            $value,
+        ) ?? $value;
 
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
     }
