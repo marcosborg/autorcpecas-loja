@@ -117,6 +117,25 @@
             display: block;
             margin: 0 auto;
         }
+        .product-zoom-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 48px;
+            height: 48px;
+            border: 1px solid rgba(255, 255, 255, .5);
+            border-radius: 50%;
+            background: rgba(17, 24, 39, .85);
+            color: #fff;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .product-zoom-nav:hover { background: #111827; }
+        .product-zoom-nav:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+        .product-zoom-prev { left: .5rem; }
+        .product-zoom-next { right: .5rem; }
     </style>
 
     <div class="container-xl">
@@ -344,6 +363,15 @@
                 </div>
                 <div class="modal-body pt-2">
                     <img class="product-zoom-image" src="" alt="Imagem ampliada" data-zoom-image>
+                    @if (count($carouselImages) > 1)
+                        <button type="button" class="product-zoom-nav product-zoom-prev" data-zoom-prev aria-label="Fotografia anterior">
+                            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" class="product-zoom-nav product-zoom-next" data-zoom-next aria-label="Fotografia seguinte">
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </button>
+                        <div class="text-center text-white small mt-2" data-zoom-counter aria-live="polite" aria-atomic="true"></div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -395,11 +423,39 @@
                 if (!zoomImage) return;
 
                 var zoomModal = new window.bootstrap.Modal(zoomModalEl);
+                var imageSources = Array.from(document.querySelectorAll('#productCarousel [data-zoom-trigger]'), function (trigger) {
+                    return trigger.getAttribute('data-zoom-src');
+                });
+                var currentIndex = 0;
+                var counter = zoomModalEl.querySelector('[data-zoom-counter]');
+
+                function showImage(index) {
+                    if (!imageSources.length) return;
+                    currentIndex = (index + imageSources.length) % imageSources.length;
+                    zoomImage.src = imageSources[currentIndex];
+                    zoomImage.alt = 'Fotografia ' + (currentIndex + 1) + ' de ' + imageSources.length;
+                    if (counter) counter.textContent = (currentIndex + 1) + ' / ' + imageSources.length;
+                }
+
+                var previous = zoomModalEl.querySelector('[data-zoom-prev]');
+                var next = zoomModalEl.querySelector('[data-zoom-next]');
+                if (previous) previous.addEventListener('click', function () { showImage(currentIndex - 1); });
+                if (next) next.addEventListener('click', function () { showImage(currentIndex + 1); });
+                zoomModalEl.addEventListener('keydown', function (event) {
+                    if (imageSources.length < 2) return;
+                    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        showImage(currentIndex + (event.key === 'ArrowLeft' ? -1 : 1));
+                    }
+                });
 
                 function openZoom(src) {
                     var imageSrc = String(src || '').trim();
                     if (imageSrc === '') return;
-                    zoomImage.src = imageSrc;
+                    var index = imageSources.indexOf(imageSrc);
+                    if (index < 0) return;
+                    showImage(index);
                     zoomModal.show();
                 }
 
