@@ -6,6 +6,7 @@
     @php($additionalReferences = array_values(array_filter((array) ($product['additional_references'] ?? []), fn ($ref) => is_scalar($ref) && trim((string) $ref) !== '')))
     @php($images = array_values(array_filter($product['images'] ?? [], fn ($u) => is_string($u) && $u !== '')))
     @php($cover = (string) ($product['cover_image'] ?? ''))
+    @php($vehicleContext = is_array($vehicleContext ?? null) ? $vehicleContext : null)
     @php($priceExVatForSchema = $product['price_ex_vat'] ?? ($product['price'] ?? null))
     @php($productUrlForSchema = \App\Support\ProductUrl::url($product))
     @php($schemaDescriptionParts = array_values(array_filter([
@@ -136,6 +137,30 @@
         .product-zoom-nav:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
         .product-zoom-prev { left: .5rem; }
         .product-zoom-next { right: .5rem; }
+        .vehicle-origin-card {
+            border-color: #eadede;
+            background: #fffdfd;
+        }
+        .vehicle-origin-card dt {
+            color: #6c757d;
+            font-weight: 500;
+        }
+        .vehicle-origin-card dd {
+            font-weight: 600;
+        }
+        .vehicle-photo {
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            object-fit: cover;
+            border-radius: .6rem;
+        }
+        .related-product-title {
+            display: -webkit-box;
+            overflow: hidden;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            min-height: 2.5rem;
+        }
     </style>
 
     <div class="container-xl">
@@ -356,6 +381,137 @@
 
             </div>
         </div>
+
+        @if ($vehicleContext !== null)
+            @php($vehicleImages = array_values(array_filter((array) ($vehicleContext['images'] ?? []), fn ($url) => is_string($url) && trim($url) !== '')))
+            @php($relatedProducts = array_values(array_filter((array) ($vehicleContext['products'] ?? []), fn ($item) => is_array($item))))
+            @php($powerParts = array_values(array_filter([
+                !empty($vehicleContext['power_kw']) ? trim((string) $vehicleContext['power_kw']).' kW' : null,
+                !empty($vehicleContext['power_cv']) ? trim((string) $vehicleContext['power_cv']).' cv' : null,
+            ])))
+
+            <section class="mt-5" aria-labelledby="vehicle-origin-heading">
+                <h2 id="vehicle-origin-heading" class="h3 mb-3">Viatura de origem</h2>
+                <div class="card vehicle-origin-card">
+                    <div class="card-body">
+                        <div class="row g-4">
+                            <div class="col-12 @if(count($vehicleImages) > 0) col-lg-7 @endif">
+                                <dl class="row mb-0 gy-2">
+                                    @foreach ([
+                                        'Marca' => $vehicleContext['make_name'] ?? null,
+                                        'Modelo' => $vehicleContext['model_name'] ?? null,
+                                        'Versão' => $vehicleContext['variant_name'] ?? null,
+                                        'Ano' => $vehicleContext['year'] ?? null,
+                                        'Combustível' => $vehicleContext['fuel_type'] ?? null,
+                                        'Código do motor' => $vehicleContext['engine_code'] ?? null,
+                                        'Potência' => count($powerParts) > 0 ? implode(' / ', $powerParts) : null,
+                                        'Tipo' => $vehicleContext['type_name'] ?? null,
+                                        'ID da viatura' => $vehicleContext['id'] ?? null,
+                                    ] as $label => $value)
+                                        @if (is_scalar($value) && trim((string) $value) !== '')
+                                            <dt class="col-sm-4">{{ $label }}</dt>
+                                            <dd class="col-sm-8 mb-0">{{ $value }}</dd>
+                                        @endif
+                                    @endforeach
+                                </dl>
+                            </div>
+
+                            @if (count($vehicleImages) > 0)
+                                <div class="col-12 col-lg-5">
+                                    <div class="row row-cols-1 row-cols-sm-2 g-2" aria-label="Fotografias da viatura">
+                                        @foreach ($vehicleImages as $vehicleImage)
+                                            <div class="col">
+                                                <span class="tp-image-frame tp-image-frame-block">
+                                                    <span class="tp-image-spinner" aria-hidden="true"></span>
+                                                    <img
+                                                        class="vehicle-photo tp-preload-img"
+                                                        src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='450'><rect width='100%' height='100%' fill='%23f2f2f2'/></svg>"
+                                                        data-tp-src="{{ $vehicleImage }}"
+                                                        alt="Viatura de origem"
+                                                        loading="lazy"
+                                                        decoding="async"
+                                                        onerror="this.closest('.col').remove();"
+                                                    >
+                                                </span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            @if (count($relatedProducts) > 0)
+                <section class="mt-5" aria-labelledby="related-products-heading">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                        <h2 id="related-products-heading" class="h3 mb-0">Outras peças desta viatura</h2>
+                        <span class="badge rounded-pill text-bg-secondary">{{ count($relatedProducts) }}</span>
+                    </div>
+
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+                        @foreach ($relatedProducts as $relatedProduct)
+                            @php($relatedImage = $relatedProduct['cover_image'] ?? ($relatedProduct['images'][0] ?? null))
+                            @php($relatedUrl = \App\Support\ProductUrl::url($relatedProduct))
+                            @php($relatedPrice = $relatedProduct['price_ex_vat'] ?? ($relatedProduct['price'] ?? null))
+                            @php($relatedIsConsult = !is_numeric($relatedPrice) || (float) $relatedPrice <= 0)
+                            <div class="col">
+                                <article class="card h-100 product-card">
+                                    <a
+                                        href="{{ $relatedUrl }}"
+                                        class="product-card-link"
+                                        aria-label="Ver produto {{ $relatedProduct['title'] ?? 'Produto' }}"
+                                    ></a>
+                                    @if (is_string($relatedImage) && $relatedImage !== '')
+                                        <div class="tp-image-frame tp-image-frame-block">
+                                            <span class="tp-image-spinner" aria-hidden="true"></span>
+                                            <img
+                                                class="card-img-top store-img tp-preload-img"
+                                                src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400'><rect width='100%' height='100%' fill='%23f2f2f2'/></svg>"
+                                                data-tp-src="{{ $relatedImage }}"
+                                                alt=""
+                                                loading="lazy"
+                                                decoding="async"
+                                                onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;600&quot; height=&quot;400&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f2f2f2&quot;/><text x=&quot;50%&quot; y=&quot;50%&quot; dominant-baseline=&quot;middle&quot; text-anchor=&quot;middle&quot; fill=&quot;%23666&quot; font-family=&quot;Arial&quot; font-size=&quot;20&quot;>Sem imagem</text></svg>';"
+                                            >
+                                        </div>
+                                    @else
+                                        <div class="store-img"></div>
+                                    @endif
+                                    <div class="card-body d-flex flex-column">
+                                        <h3 class="h6 card-title related-product-title mb-2">
+                                            <a class="link-primary text-decoration-none fw-semibold" href="{{ $relatedUrl }}">{{ $relatedProduct['title'] ?? 'Produto' }}</a>
+                                        </h3>
+                                        @if (!empty($relatedProduct['reference']))
+                                            <div class="small text-muted"><strong>Ref.:</strong> {{ $relatedProduct['reference'] }}</div>
+                                        @endif
+                                    </div>
+                                    <div class="card-footer bg-white border-top-0 pt-0">
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+                                            <div class="store-price-box">
+                                                @if ($relatedIsConsult)
+                                                    <span class="price-amount" style="font-size: 1rem;">Sob consulta</span>
+                                                @else
+                                                    <div>
+                                                        <span class="price-amount">{{ number_format((float) $relatedPrice, 2, ',', ' ') }}</span>
+                                                        <span class="price-currency">EUR</span>
+                                                    </div>
+                                                    <div class="price-note">sem IVA</div>
+                                                @endif
+                                            </div>
+                                            @if (!is_null($relatedProduct['stock'] ?? null))
+                                                <span class="badge rounded-pill text-bg-secondary px-2 py-1">Stock: {{ $relatedProduct['stock'] }}</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </article>
+                            </div>
+                        @endforeach
+                    </div>
+                </section>
+            @endif
+        @endif
     </div>
 
     <div class="modal fade product-zoom-modal" id="productZoomModal" tabindex="-1" aria-hidden="true">

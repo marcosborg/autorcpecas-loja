@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Mail\ConsultPriceLeadMail;
 use App\Support\ProductUrl;
 use App\Services\Catalog\CatalogProvider;
+use App\Services\Catalog\VehicleContextCatalogProvider;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -25,6 +27,19 @@ class StoreProductController extends Controller
 
         if (! $product) {
             abort(404);
+        }
+
+        $vehicleContext = null;
+        if ($catalog instanceof VehicleContextCatalogProvider) {
+            try {
+                $vehicleContext = $catalog->vehicleContext($product);
+            } catch (\RuntimeException $e) {
+                Log::warning('Falha a carregar contexto da viatura para a página de produto.', [
+                    'product_id' => $product['id'] ?? null,
+                    'vehicle_id' => $product['vehicle_id'] ?? null,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
         }
 
         $canonicalUrl = ProductUrl::url($product);
@@ -70,6 +85,7 @@ class StoreProductController extends Controller
             'metaImage' => $metaImage,
             'metaType' => 'product',
             'metaRobots' => 'index,follow',
+            'vehicleContext' => $vehicleContext,
         ]);
     }
 

@@ -86,12 +86,25 @@ class TpSoftwareSearchIndexTest extends TestCase
         $this->assertSame('Citroën', $reference->paginator->items()[0]['make_name']);
     }
 
+    public function test_products_for_vehicle_returns_all_other_parts_in_title_order(): void
+    {
+        $index = app(TpSoftwareSearchIndex::class);
+        $products = $this->products();
+        $index->build($products, count($products));
+
+        $related = $index->productsForVehicle('vehicle-c4', '1');
+
+        $this->assertSame([2], array_map(static fn (array $product): int => (int) $product['id'], $related));
+        $this->assertSame([], $index->productsForVehicle('missing'));
+        $this->assertSame([], $index->productsForVehicle(''));
+    }
+
     /** @return list<array<string, mixed>> */
     private function products(): array
     {
         return [
-            ['id' => 1, 'reference' => 'REF-C4', 'title' => 'Botão Vidro', 'description' => 'Comando elétrico', 'make_name' => 'CITROËN', 'model_name' => 'C4', 'piece_name' => 'Botão', 'part_code' => 'INT-001', 'price_ex_vat' => 20, 'created_at' => '2026-01-03'],
-            ['id' => 2, 'reference' => 'REF-C3', 'title' => 'Alternador Citroën', 'description' => 'Alternador completo', 'make_name' => 'Citroën', 'model_name' => 'C3', 'piece_name' => 'Alternador', 'part_code' => 'ALT-002', 'price_ex_vat' => 80, 'created_at' => '2026-01-02'],
+            ['id' => 1, 'reference' => 'REF-C4', 'title' => 'Botão Vidro', 'description' => 'Comando elétrico', 'make_name' => 'CITROËN', 'model_name' => 'C4', 'vehicle_id' => 'vehicle-c4', 'piece_name' => 'Botão', 'part_code' => 'INT-001', 'price_ex_vat' => 20, 'created_at' => '2026-01-03'],
+            ['id' => 2, 'reference' => 'REF-C3', 'title' => 'Alternador Citroën', 'description' => 'Alternador completo', 'make_name' => 'Citroën', 'model_name' => 'C3', 'vehicle_id' => 'vehicle-c4', 'piece_name' => 'Alternador', 'part_code' => 'ALT-002', 'price_ex_vat' => 80, 'created_at' => '2026-01-02'],
             ['id' => 3, 'reference' => 'VW-001', 'title' => 'Farolim traseiro', 'description' => 'Farolim Volkswagen Golf', 'make_name' => 'VW', 'model_name' => 'Golf VII', 'piece_name' => 'Farolim', 'part_code' => 'LGT-003', 'price_ex_vat' => 50, 'created_at' => '2026-01-01'],
             ['id' => 4, 'reference' => 'PEU-001', 'title' => 'Motor de arranque', 'description' => 'Peça Peugeot 208', 'make_name' => 'PEUGEOT', 'model_name' => '208', 'piece_name' => 'Motor', 'part_code' => 'MOT-004', 'price_ex_vat' => 100, 'created_at' => '2025-12-31'],
         ];

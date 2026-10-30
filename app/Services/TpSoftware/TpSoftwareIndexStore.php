@@ -10,7 +10,7 @@ class TpSoftwareIndexStore
     {
     }
 
-    private const SCHEMA_VERSION = 2;
+    private const SCHEMA_VERSION = 3;
 
     private function indexPath(): string
     {

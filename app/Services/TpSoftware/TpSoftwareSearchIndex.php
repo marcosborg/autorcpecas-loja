@@ -45,10 +45,10 @@ final class TpSoftwareSearchIndex
 
             $insert = $db->prepare('INSERT INTO products (
                 lookup_id, reference, reference_norm, title, title_norm, description, make_name, make_key,
-                model_name, model_key, piece_name, piece_key, codes, codes_norm, engine, price, created_at, payload
+                model_name, model_key, vehicle_id, piece_name, piece_key, codes, codes_norm, engine, price, created_at, payload
             ) VALUES (
                 :lookup_id, :reference, :reference_norm, :title, :title_norm, :description, :make_name, :make_key,
-                :model_name, :model_key, :piece_name, :piece_key, :codes, :codes_norm, :engine, :price, :created_at, :payload
+                :model_name, :model_key, :vehicle_id, :piece_name, :piece_key, :codes, :codes_norm, :engine, :price, :created_at, :payload
             )');
             $insertFts = $db->prepare('INSERT INTO products_fts (
                 rowid, title, reference, make, model, description, codes, engine, piece, aliases
@@ -119,6 +119,7 @@ final class TpSoftwareSearchIndex
                     ':make_key' => $makeKey,
                     ':model_name' => $model,
                     ':model_key' => $modelKey,
+                    ':vehicle_id' => trim((string) ($product['vehicle_id'] ?? '')),
                     ':piece_name' => $piece,
                     ':piece_key' => $pieceKey,
                     ':codes' => $codes,
@@ -164,7 +165,7 @@ final class TpSoftwareSearchIndex
                 'expected_total' => (string) count($seen),
                 'indexed_total' => (string) count($seen),
                 'source_duplicate_rows' => (string) $sourceDuplicates,
-                'schema_version' => '1',
+                'schema_version' => '2',
                 'make_counts' => json_encode($makeCounts, JSON_UNESCAPED_UNICODE),
             ] as $key => $value) {
                 $this->bindAndExecute($metaInsert, [':key' => $key, ':value' => $value]);
@@ -295,6 +296,38 @@ final class TpSoftwareSearchIndex
             $row = $stmt->execute()->fetchArray(SQLITE3_ASSOC);
 
             return $row ? $this->decodeProduct((string) $row['payload']) : null;
+        } finally {
+            $db->close();
+        }
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function productsForVehicle(string $vehicleId, string $excludeLookupId = ''): array
+    {
+        $vehicleId = trim($vehicleId);
+        if ($vehicleId === '') {
+            return [];
+        }
+
+        $db = $this->open();
+        try {
+            if (! $this->hasColumn($db, 'products', 'vehicle_id')) {
+                return [];
+            }
+
+            $stmt = $db->prepare('SELECT payload FROM products
+                WHERE vehicle_id = :vehicle_id AND (:exclude_lookup_id = "" OR lookup_id <> :exclude_lookup_id)
+                ORDER BY title COLLATE NOCASE, lookup_id');
+            $this->bind($stmt, ':vehicle_id', $vehicleId);
+            $this->bind($stmt, ':exclude_lookup_id', trim($excludeLookupId));
+            $result = $stmt->execute();
+            $items = [];
+
+            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+                $items[] = $this->decodeProduct((string) $row['payload']);
+            }
+
+            return $items;
         } finally {
             $db->close();
         }
@@ -518,6 +551,7 @@ final class TpSoftwareSearchIndex
             make_key TEXT NOT NULL,
             model_name TEXT NOT NULL DEFAULT "",
             model_key TEXT NOT NULL DEFAULT "",
+            vehicle_id TEXT NOT NULL DEFAULT "",
             piece_name TEXT NOT NULL DEFAULT "",
             piece_key TEXT NOT NULL DEFAULT "",
             codes TEXT NOT NULL DEFAULT "",
@@ -534,6 +568,7 @@ final class TpSoftwareSearchIndex
         $db->exec('CREATE TABLE vocabulary (term TEXT PRIMARY KEY, frequency INTEGER NOT NULL)');
         $db->exec('CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
         $db->exec('CREATE INDEX products_make_model ON products(make_key, model_key)');
+        $db->exec('CREATE INDEX products_vehicle ON products(vehicle_id)');
         $db->exec('CREATE INDEX products_piece ON products(piece_key)');
         $db->exec('CREATE INDEX products_reference ON products(reference_norm)');
         $db->exec('CREATE INDEX products_price ON products(price)');
@@ -553,6 +588,18 @@ final class TpSoftwareSearchIndex
         }
 
         return compact('integrity', 'expectedTotal', 'products', 'fts', 'emptyMakes', 'duplicates', 'citroen');
+    }
+
+    private function hasColumn(SQLite3 $db, string $table, string $column): bool
+    {
+        $result = $db->query('PRAGMA table_info('.$table.')');
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            if (($row['name'] ?? null) === $column) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return list<array{slug: string, name: string, count: int}> */

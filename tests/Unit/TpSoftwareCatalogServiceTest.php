@@ -10,6 +10,39 @@ use Tests\TestCase;
 
 class TpSoftwareCatalogServiceTest extends TestCase
 {
+    public function test_normalizes_vehicle_context_without_mixing_part_images(): void
+    {
+        $client = $this->createMock(TpSoftwareClient::class);
+        $indexStore = $this->createMock(TpSoftwareIndexStore::class);
+        $service = new TpSoftwareCatalogService($client, $indexStore);
+        $method = new \ReflectionMethod($service, 'normalizeProduct');
+        $method->setAccessible(true);
+
+        $product = $method->invoke($service, [
+            'id' => 402921,
+            'vehicle_id' => '10627',
+            'product_name' => 'Conjunto de Bancos',
+            'vehicle_make_name' => 'MG',
+            'vehicle_model_name' => 'MG ZS SUV',
+            'vehicle_variant_name' => '1.0 T-GDi',
+            'vehicle_type_name' => 'Ligeiro',
+            'vehicle_year' => '2017',
+            'fuel_type_name' => 'Gasolina',
+            'motor_code' => '10E4E',
+            'kw' => '82',
+            'cv' => '111',
+            'image_list' => [['image_url' => 'https://example.com/part.jpg']],
+        ]);
+
+        $this->assertSame('10627', $product['vehicle_id']);
+        $this->assertSame('1.0 T-GDi', $product['vehicle_variant_name']);
+        $this->assertSame('Ligeiro', $product['vehicle_type_name']);
+        $this->assertSame('82', $product['engine_power_kw']);
+        $this->assertSame('111', $product['engine_power_cv']);
+        $this->assertSame([], $product['vehicle_images']);
+        $this->assertSame(['https://example.com/part.jpg'], $product['images']);
+    }
+
     public function test_exact_reference_search_prefers_live_tp_results_over_stale_index(): void
     {
         config()->set('tpsoftware.catalog.index_enabled', true);

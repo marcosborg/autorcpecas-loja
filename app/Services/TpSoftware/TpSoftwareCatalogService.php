@@ -5,11 +5,12 @@ namespace App\Services\TpSoftware;
 use App\Services\Catalog\AdvancedCatalogProvider;
 use App\Services\Catalog\CatalogSearchCriteria;
 use App\Services\Catalog\CatalogSearchResult;
+use App\Services\Catalog\VehicleContextCatalogProvider;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
-class TpSoftwareCatalogService implements AdvancedCatalogProvider
+class TpSoftwareCatalogService implements AdvancedCatalogProvider, VehicleContextCatalogProvider
 {
     /** @var array<string, int>|null */
     private ?array $indexPositionMap = null;
@@ -496,6 +497,37 @@ class TpSoftwareCatalogService implements AdvancedCatalogProvider
         }
 
         return null;
+    }
+
+    public function vehicleContext(array $product): ?array
+    {
+        $vehicleId = trim((string) ($product['vehicle_id'] ?? ''));
+
+        if ($vehicleId === '') {
+            return null;
+        }
+
+        $productId = trim((string) ($product['id'] ?? ''));
+        $relatedProducts = $this->searchIndex()->productsForVehicle($vehicleId, $productId);
+        $relatedProducts = array_map(fn (array $item): array => $this->withCoverImage($item), $relatedProducts);
+
+        return [
+            'id' => $vehicleId,
+            'make_name' => trim((string) ($product['make_name'] ?? $product['category'] ?? '')),
+            'model_name' => trim((string) ($product['model_name'] ?? '')),
+            'variant_name' => trim((string) ($product['vehicle_variant_name'] ?? '')),
+            'type_name' => trim((string) ($product['vehicle_type_name'] ?? '')),
+            'fuel_type' => trim((string) ($product['fuel_type'] ?? '')),
+            'year' => trim((string) ($product['vehicle_year'] ?? '')),
+            'engine_code' => trim((string) ($product['engine_code'] ?? '')),
+            'power_kw' => trim((string) ($product['engine_power_kw'] ?? '')),
+            'power_cv' => trim((string) ($product['engine_power_cv'] ?? '')),
+            'images' => array_values(array_filter(
+                (array) ($product['vehicle_images'] ?? []),
+                static fn ($url): bool => is_string($url) && trim($url) !== ''
+            )),
+            'products' => $relatedProducts,
+        ];
     }
 
     public function search(string $query, int $page = 1, int $perPage = 24): LengthAwarePaginator
@@ -1065,6 +1097,11 @@ class TpSoftwareCatalogService implements AdvancedCatalogProvider
         $fuelType = trim((string) (data_get($raw, 'fuel_type_name') ?? ''));
         $engineCode = trim((string) (data_get($raw, 'motor_code') ?? ''));
         $vehicleYear = trim((string) (data_get($raw, 'vehicle_year') ?? ''));
+        $vehicleId = trim((string) (data_get($raw, 'vehicle_id') ?? ''));
+        $vehicleVariantName = trim((string) (data_get($raw, 'vehicle_variant_name') ?? ''));
+        $vehicleTypeName = trim((string) (data_get($raw, 'vehicle_type_name') ?? ''));
+        $enginePowerKw = trim((string) (data_get($raw, 'kw') ?? ''));
+        $enginePowerCv = trim((string) (data_get($raw, 'cv') ?? ''));
         $tpReference = trim((string) (data_get($raw, 'parts_internal_id') ?? ''));
         $price = data_get($raw, 'price_1')
             ?? data_get($raw, 'price_2')
@@ -1102,6 +1139,12 @@ class TpSoftwareCatalogService implements AdvancedCatalogProvider
             'engine_code' => $engineCode !== '' ? $engineCode : null,
             'engine_label' => $this->buildEngineLabel($raw),
             'vehicle_year' => $vehicleYear !== '' ? $vehicleYear : null,
+            'vehicle_id' => $vehicleId !== '' ? $vehicleId : null,
+            'vehicle_variant_name' => $vehicleVariantName !== '' ? $vehicleVariantName : null,
+            'vehicle_type_name' => $vehicleTypeName !== '' ? $vehicleTypeName : null,
+            'engine_power_kw' => $enginePowerKw !== '' && $enginePowerKw !== '0' ? $enginePowerKw : null,
+            'engine_power_cv' => $enginePowerCv !== '' && $enginePowerCv !== '0' ? $enginePowerCv : null,
+            'vehicle_images' => $this->normalizeVehicleImageUrls($raw),
             'tp_reference' => $tpReference !== '' ? $tpReference : null,
             'part_code' => $partCode !== '' ? $partCode : null,
             'barcode' => trim((string) (data_get($raw, 'bar_code_parts') ?? '')) ?: null,
@@ -1114,6 +1157,35 @@ class TpSoftwareCatalogService implements AdvancedCatalogProvider
         }
 
         return $normalized;
+    }
+
+    /**
+     * Mantém as fotografias da viatura separadas das fotografias das peças.
+     * O endpoint atual não fornece este campo, mas alguns payloads TP podem incluí-lo.
+     *
+     * @param  array<string, mixed>  $raw
+     * @return list<string>
+     */
+    private function normalizeVehicleImageUrls(array $raw): array
+    {
+        $images = data_get($raw, 'vehicle_image_list') ?? data_get($raw, 'vehicle_images');
+
+        if (! is_array($images)) {
+            return [];
+        }
+
+        $urls = [];
+        foreach ($images as $image) {
+            $url = is_string($image)
+                ? trim($image)
+                : trim((string) (data_get($image, 'image_url') ?? data_get($image, 'url') ?? ''));
+
+            if ($url !== '') {
+                $urls[] = $url;
+            }
+        }
+
+        return array_values(array_unique($urls));
     }
 
     private function priceWithoutVat(mixed $price, mixed $vat): ?float
