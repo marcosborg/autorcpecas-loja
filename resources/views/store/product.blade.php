@@ -270,6 +270,9 @@
                         <span class="mx-2">•</span>
                         Modelo: <a class="link-primary text-decoration-none" href="{{ url('/loja/categorias/'.\Illuminate\Support\Str::slug($make)).'?model='.urlencode(\Illuminate\Support\Str::slug($model)) }}">{{ $model }}</a>
                     @endif
+                    @if (trim((string) ($product['description'] ?? '')) !== '')
+                        <div class="mt-1 text-break" style="white-space: pre-line">Observações: <span class="fw-semibold">{{ trim((string) $product['description']) }}</span></div>
+                    @endif
                 </div>
 
                 <div class="card mb-3">
